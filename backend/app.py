@@ -1,8 +1,10 @@
 from flask import Flask, render_template
 from routes.query_routes import query_bp
+from routes.preset_routes import preset_bp
 
 app = Flask(__name__, template_folder="../frontend/templates", static_folder="../frontend/static")
 app.register_blueprint(query_bp)
+app.register_blueprint(preset_bp)
 
 @app.route('/')
 def home():
