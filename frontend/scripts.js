@@ -1,13 +1,27 @@
 
+
+function appendMessage(role, text) {
+    const chat = document.getElementById('chat-history');
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'chat-bubble ' + (role === 'user' ? 'user' : 'ai');
+    const timestamp = new Date().toLocaleTimeString();
+    msgDiv.innerHTML = `<span class="chat-role">${role === 'user' ? 'You' : 'AI'}</span><span class="chat-time">${timestamp}</span><div class="chat-text">${text}</div>`;
+    chat.appendChild(msgDiv);
+    chat.scrollTop = chat.scrollHeight;
+}
+
 async function sendPrompt() {
     const prompt = document.getElementById('prompt').value;
+    if (!prompt.trim()) return;
+    appendMessage('user', prompt);
+    document.getElementById('prompt').value = '';
     const res = await fetch('/query', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({prompt})
     });
     const data = await res.json();
-    document.getElementById('response').innerText = data.response;
+    appendMessage('ai', data.response);
 }
 
 async function loadPresets() {

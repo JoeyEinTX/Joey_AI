@@ -25,8 +25,46 @@ button {
 .preset-btn:hover {
     background-color: #0056b3;
 }
-pre {
+
+#chat-history {
     margin-top: 20px;
-    background: #fff;
+    background: #f9f9f9;
     padding: 10px;
+    border-radius: 8px;
+    max-height: 400px;
+    overflow-y: auto;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.chat-bubble {
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    border-radius: 16px;
+    max-width: 80%;
+    word-break: break-word;
+    position: relative;
+    display: inline-block;
+}
+.chat-bubble.user {
+    background: #d1e7ff;
+    color: #222;
+    align-self: flex-end;
+    margin-left: 20%;
+}
+.chat-bubble.ai {
+    background: #e9ecef;
+    color: #222;
+    align-self: flex-start;
+    margin-right: 20%;
+}
+.chat-role {
+    font-weight: bold;
+    margin-right: 8px;
+}
+.chat-time {
+    font-size: 0.85em;
+    color: #888;
+    margin-left: 8px;
+}
+.chat-text {
+    margin-top: 4px;
 }
