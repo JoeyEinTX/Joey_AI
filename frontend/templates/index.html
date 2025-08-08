@@ -1,65 +1,73 @@
+
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Joey_AI Dashboard</title>
-    <link rel="stylesheet" href="/static/style.css">
+  <title>Joey_AI Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
-    <div class="header">
-        <h1>Joey_AI Dashboard</h1>
+<body class="theme-joey">
+  <div class="shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <h2>Projects</h2>
+        <button id="new-project-btn">New Project</button>
+      </div>
+      <input type="text" id="project-search" placeholder="Search messages..." />
+      <div id="project-list" class="project-list"></div>
+    </aside>
+    <header id="topbar" class="topbar">
+      <div class="brand">
+        <img id="brandWordmark" src="/static/img/joeyai_wordmark.png" alt="JoeyAI" />
+      </div>
+      <div class="topbar-actions">
         <div class="status-indicator" id="status-indicator">
-            <span id="status-text">Checking...</span>
+          <span id="status-text">Ready</span>
         </div>
         <label class="autosave-toggle">
-            <input type="checkbox" id="autosave-chats-toggle" checked>
-            Auto-save Chats
+          <input type="checkbox" id="autosave-chats-toggle" checked>
+          Auto-save Chats
         </label>
         <button id="btnMemory" class="btn">Memory</button>
-    </div>
-    <div class="layout">
-      <aside class="sidebar" id="sidebar">
-          <div class="sidebar-header">
-              <h2>Projects</h2>
-              <button id="new-project-btn">New Project</button>
+      </div>
+    </header>
+    <main class="main">
+      <section id="logoHero" class="logo-hero">
+        <img src="/static/img/joeyai_poster.png" alt="JoeyAI Poster" />
+      </section>
+      <section id="chatArea" class="chat-area start">
+        <div id="messages" class="messages"></div>
+        <form id="composer" class="composer" autocomplete="off">
+          <textarea id="promptInput" placeholder="Enter your prompt here…"></textarea>
+          <div class="composer-actions">
+            <button id="sendBtn" type="submit" class="btn primary">Send</button>
+            <button id="advancedBtn" type="button" class="btn">Advanced</button>
+            <button id="clearBtn" type="button" class="btn danger">Clear Chat</button>
+            <button id="deepBtn" type="button" class="btn pill">Deep Reasoning</button>
+            <button id="auditBtn" type="button" class="btn pill">Code Audit</button>
+            <button id="edgeBtn" type="button" class="btn pill">Edge Cases</button>
           </div>
-          <input type="text" id="project-search" placeholder="Search messages..." />
-          <div id="project-list" class="project-list"></div>
-      </aside>
-      <main class="workspace">
-        <section id="chatArea" class="chat-area start">
-          <div id="messages" class="messages"></div>
-          <form id="composer" class="composer" autocomplete="off">
-            <textarea id="promptInput" placeholder="Enter your prompt here..." rows="5"></textarea>
-            <div class="composer-actions">
-              <button id="sendBtn" type="submit" class="btn primary">Send</button>
-              <button id="advancedBtn" type="button" class="btn">Advanced</button>
-              <button id="clearBtn" type="button" class="btn danger">Clear Chat</button>
-              <button id="deepBtn" type="button" class="btn pill">Deep Reasoning</button>
-              <button id="auditBtn" type="button" class="btn pill">Code Audit</button>
-              <button id="edgeBtn" type="button" class="btn pill">Edge Cases</button>
-            </div>
-          </form>
-        </section>
-      </main>
-    </div>
+        </form>
+      </section>
+    </main>
+  </div>
 
-    <!-- Memory Modal -->
-    <div id="memoryModal" class="modal hidden" aria-hidden="true">
-      <div class="modal-dialog">
-        <div class="modal-header">
-          <h3>Search Memory</h3>
-          <button id="memoryModalClose" class="icon-btn" aria-label="Close">×</button>
+  <!-- Memory Modal -->
+  <div id="memoryModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>Search Memory</h3>
+        <button id="memoryModalClose" class="icon-btn" aria-label="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <input id="memoryQuery" type="text" placeholder="Search memory…" />
+          <button id="memorySearchBtn" class="btn">Search</button>
         </div>
-        <div class="modal-body">
-          <div class="row">
-            <input id="memoryQuery" type="text" placeholder="Search memory…" />
-            <button id="memorySearchBtn" class="btn">Search</button>
-          </div>
-          <div id="memoryResults" class="results"></div>
-        </div>
+        <div id="memoryResults" class="results"></div>
       </div>
     </div>
+  </div>
 
-    <script src="/static/scripts.js"></script>
+  <script src="/static/scripts.js"></script>
 </body>
 </html>
