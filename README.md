@@ -122,3 +122,41 @@ flask run --host=0.0.0.0 --port=5000
 
 # requirements.txt
 Flask==3.0.0
+
+## Memory Features
+
+Joey_AI's Memory panel lets you save, search, filter, edit, and organize notes, todos, decisions, and logs with tags. You can also export/import your notes and view stats.
+
+### Features
+- **Tags**: Add comma-separated tags to any note for easy filtering.
+- **Search & Filters**: Search notes by text, filter by kind (note/todo/decision/log) and tags.
+- **Edit/Delete**: Inline edit and delete actions for each entry.
+- **Export/Import**: Download all notes as JSON, or import from a file (upsert by id).
+- **Stats**: See counts for each kind (note/todo/decision/log) in the dashboard.
+- **Pagination**: Load more notes in pages of 25.
+
+### Example curl commands
+
+Update a note:
+```bash
+curl -X PATCH -H "Content-Type: application/json" \
+  -d '{"id": 123, "text": "Updated text", "tags": "project,urgent"}' \
+  http://localhost:5000/memory/update
+```
+
+Delete a note:
+```bash
+curl -X DELETE "http://localhost:5000/memory/delete?id=123"
+```
+
+Export all notes:
+```bash
+curl http://localhost:5000/memory/export
+```
+
+Import notes:
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  --data @memory_export.json \
+  http://localhost:5000/memory/import
+```

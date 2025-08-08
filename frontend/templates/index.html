@@ -46,6 +46,38 @@
         <div class="chat-section">
             <div id="chat-history"></div>
         </div>
+        
+        <!-- Memory Card Section -->
+        <div class="card memory-card" id="memory-card">
+            <div class="card-header">
+                <h2>Memory</h2>
+                <div id="memory-stats" class="memory-stats">
+                    <span class="badge note" id="stat-note">0</span>
+                    <span class="badge todo" id="stat-todo">0</span>
+                    <span class="badge decision" id="stat-decision">0</span>
+                    <span class="badge log" id="stat-log">0</span>
+                </div>
+            </div>
+            <div class="card-toolbar">
+                <input type="text" id="memory-search" placeholder="Search..." />
+                <select id="memory-kind-filter">
+                    <option value="">All</option>
+                    <option value="note">Note</option>
+                    <option value="todo">Todo</option>
+                    <option value="decision">Decision</option>
+                    <option value="log">Log</option>
+                </select>
+                <input type="text" id="memory-tag-filter" placeholder="Tags (comma-separated)" />
+                <button id="memory-new-btn">New Entry</button>
+                <button id="memory-export-btn">Export</button>
+                <label class="import-label">
+                    Import <input type="file" id="memory-import-input" style="display:none;" />
+                </label>
+            </div>
+            <div id="memory-composer" class="memory-composer" style="display:none;"></div>
+            <div id="memory-results" class="memory-results"></div>
+            <button id="memory-load-more" class="memory-load-more">Load more</button>
+        </div>
     </div>
 
     <script src="/static/scripts.js"></script>

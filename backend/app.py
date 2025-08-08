@@ -2,6 +2,7 @@ from flask import Flask, render_template
 from routes.query_routes import query_bp
 from routes.preset_routes import preset_bp
 from routes.health_routes import health_bp
+from routes.memory_routes import memory_bp
 from config import FlaskConfig
 import logging
 
@@ -15,6 +16,7 @@ app = Flask(__name__, template_folder="../frontend/templates", static_folder="..
 app.register_blueprint(query_bp)
 app.register_blueprint(preset_bp)
 app.register_blueprint(health_bp)
+app.register_blueprint(memory_bp)
 
 @app.route('/')
 def home():
