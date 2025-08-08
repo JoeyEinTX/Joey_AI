@@ -10,74 +10,54 @@
         <div class="status-indicator" id="status-indicator">
             <span id="status-text">Checking...</span>
         </div>
+        <label class="autosave-toggle">
+            <input type="checkbox" id="autosave-chats-toggle" checked>
+            Auto-save Chats
+        </label>
+        <button id="btnMemory" class="btn">Memory</button>
     </div>
-    
-    <div class="main-container">
-        <div class="input-section">
-            <textarea id="prompt" placeholder="Enter your prompt here..." rows="4"></textarea>
-            
-            <div id="preset-buttons"></div>
-            
-            <div class="advanced-controls" id="advanced-controls" style="display: none;">
-                <h3>Advanced Parameters</h3>
-                <div class="control-group">
-                    <label for="temperature">Temperature (0.0-2.0):</label>
-                    <input type="range" id="temperature" min="0" max="2" step="0.1" value="0.7">
-                    <span id="temperature-value">0.7</span>
-                </div>
-                <div class="control-group">
-                    <label for="max-tokens">Max Tokens:</label>
-                    <input type="number" id="max-tokens" min="1" max="4096" value="512">
-                </div>
-                <div class="control-group">
-                    <label for="top-p">Top P (0.0-1.0):</label>
-                    <input type="range" id="top-p" min="0" max="1" step="0.05" value="0.9">
-                    <span id="top-p-value">0.9</span>
-                </div>
+    <div class="layout">
+      <aside class="sidebar" id="sidebar">
+          <div class="sidebar-header">
+              <h2>Projects</h2>
+              <button id="new-project-btn">New Project</button>
+          </div>
+          <input type="text" id="project-search" placeholder="Search messages..." />
+          <div id="project-list" class="project-list"></div>
+      </aside>
+      <main class="workspace">
+        <section id="chatArea" class="chat-area start">
+          <div id="messages" class="messages"></div>
+          <form id="composer" class="composer" autocomplete="off">
+            <textarea id="promptInput" placeholder="Enter your prompt here..." rows="5"></textarea>
+            <div class="composer-actions">
+              <button id="sendBtn" type="submit" class="btn primary">Send</button>
+              <button id="advancedBtn" type="button" class="btn">Advanced</button>
+              <button id="clearBtn" type="button" class="btn danger">Clear Chat</button>
+              <button id="deepBtn" type="button" class="btn pill">Deep Reasoning</button>
+              <button id="auditBtn" type="button" class="btn pill">Code Audit</button>
+              <button id="edgeBtn" type="button" class="btn pill">Edge Cases</button>
             </div>
-            
-            <div class="button-group">
-                <button onclick="sendPrompt()" id="send-btn">Send Prompt</button>
-                <button onclick="toggleAdvanced()" id="advanced-btn">Advanced</button>
-                <button onclick="clearChat()" id="clear-btn">Clear Chat</button>
-            </div>
+          </form>
+        </section>
+      </main>
+    </div>
+
+    <!-- Memory Modal -->
+    <div id="memoryModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h3>Search Memory</h3>
+          <button id="memoryModalClose" class="icon-btn" aria-label="Close">×</button>
         </div>
-        
-        <div class="chat-section">
-            <div id="chat-history"></div>
+        <div class="modal-body">
+          <div class="row">
+            <input id="memoryQuery" type="text" placeholder="Search memory…" />
+            <button id="memorySearchBtn" class="btn">Search</button>
+          </div>
+          <div id="memoryResults" class="results"></div>
         </div>
-        
-        <!-- Memory Card Section -->
-        <div class="card memory-card" id="memory-card">
-            <div class="card-header">
-                <h2>Memory</h2>
-                <div id="memory-stats" class="memory-stats">
-                    <span class="badge note" id="stat-note">0</span>
-                    <span class="badge todo" id="stat-todo">0</span>
-                    <span class="badge decision" id="stat-decision">0</span>
-                    <span class="badge log" id="stat-log">0</span>
-                </div>
-            </div>
-            <div class="card-toolbar">
-                <input type="text" id="memory-search" placeholder="Search..." />
-                <select id="memory-kind-filter">
-                    <option value="">All</option>
-                    <option value="note">Note</option>
-                    <option value="todo">Todo</option>
-                    <option value="decision">Decision</option>
-                    <option value="log">Log</option>
-                </select>
-                <input type="text" id="memory-tag-filter" placeholder="Tags (comma-separated)" />
-                <button id="memory-new-btn">New Entry</button>
-                <button id="memory-export-btn">Export</button>
-                <label class="import-label">
-                    Import <input type="file" id="memory-import-input" style="display:none;" />
-                </label>
-            </div>
-            <div id="memory-composer" class="memory-composer" style="display:none;"></div>
-            <div id="memory-results" class="memory-results"></div>
-            <button id="memory-load-more" class="memory-load-more">Load more</button>
-        </div>
+      </div>
     </div>
 
     <script src="/static/scripts.js"></script>
