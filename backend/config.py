@@ -36,3 +36,9 @@ class FlaskConfig:
     HOST: str = os.getenv('FLASK_HOST', '0.0.0.0')
     PORT: int = int(os.getenv('FLASK_PORT', '5000'))
     LOG_LEVEL: str = os.getenv('LOG_LEVEL', 'INFO')
+
+
+class JoeyAIConfig:
+    """General Joey_AI settings."""
+    
+    AUTO_SAVE_CHATS: bool = os.getenv('AUTO_SAVE_CHATS', 'True').lower() == 'true'

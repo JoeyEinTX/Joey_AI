@@ -160,3 +160,7 @@ curl -X POST -H "Content-Type: application/json" \
   --data @memory_export.json \
   http://localhost:5000/memory/import
 ```
+
+## Auto-save Chats
+
+By default, every chat exchange is automatically saved to Memory (kind="chat"). You can toggle this feature ON/OFF from the dashboard header.

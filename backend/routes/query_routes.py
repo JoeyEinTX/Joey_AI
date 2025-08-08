@@ -2,6 +2,8 @@ from flask import Blueprint, request, jsonify
 from services.ollama_service import send_prompt
 import time
 import logging
+from config import JoeyAIConfig
+import backend.services.memory_service as mem
 
 logger = logging.getLogger(__name__)
 query_bp = Blueprint('query_bp', __name__)
@@ -13,11 +15,17 @@ def query():
     prompt = data.get('prompt')
     if not prompt:
         return jsonify({"error": "No prompt provided"}), 400
-    
     start_time = time.time()
     response = send_prompt(prompt)
     response_time = time.time() - start_time
-    
+    # Auto-save chat to memory
+    if getattr(JoeyAIConfig, 'AUTO_SAVE_CHATS', True):
+        try:
+            model_name = getattr(__import__('config').OllamaConfig, 'MODEL', 'unknown')
+            transcript = f"""[CHAT]\nuser:\n{prompt}\n\nassistant:\n{response}\n\nmeta:\nmodel={model_name}, route=/query"""
+            mem.add_note(kind="chat", text=transcript)
+        except Exception as e:
+            logger.warning(f"Memory save failed: {e}")
     return jsonify({
         "response": response,
         "response_time": round(response_time, 2),
@@ -31,13 +39,9 @@ def advanced_query():
     prompt = data.get('prompt')
     if not prompt:
         return jsonify({"error": "No prompt provided"}), 400
-    
-    # Extract optional parameters
     temperature = data.get('temperature')
     max_tokens = data.get('max_tokens')
     top_p = data.get('top_p')
-    
-    # Build kwargs for Ollama API
     kwargs = {}
     if temperature is not None:
         kwargs['options'] = kwargs.get('options', {})
@@ -48,11 +52,17 @@ def advanced_query():
     if top_p is not None:
         kwargs['options'] = kwargs.get('options', {})
         kwargs['options']['top_p'] = top_p
-    
     start_time = time.time()
     response = send_prompt(prompt, **kwargs)
     response_time = time.time() - start_time
-    
+    # Auto-save chat to memory
+    if getattr(JoeyAIConfig, 'AUTO_SAVE_CHATS', True):
+        try:
+            model_name = getattr(__import__('config').OllamaConfig, 'MODEL', 'unknown')
+            transcript = f"""[CHAT]\nuser:\n{prompt}\n\nassistant:\n{response}\n\nmeta:\nmodel={model_name}, route=/query/advanced"""
+            mem.add_note(kind="chat", text=transcript)
+        except Exception as e:
+            logger.warning(f"Memory save failed: {e}")
     return jsonify({
         "response": response,
         "response_time": round(response_time, 2),
