@@ -1,0 +1,113 @@
+nohup: ignoring input
+INFO:Joey_AI.backend.app:[BOOT] static_folder=/home/p12146/projects/Joey_AI/backend/../frontend/static template_folder=../frontend/templates
+INFO:Joey_AI.backend.app:[BOOT] dotenv=/home/p12146/projects/Joey_AI/.env env=http://10.0.0.90:11434 config=http://10.0.0.90:11434 resolved=http://10.0.0.90:11434(env)
+ * Serving Flask app 'backend.app'
+ * Debug mode: on
+INFO:werkzeug:[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+INFO:werkzeug:[33mPress CTRL+C to quit[0m
+INFO:werkzeug: * Restarting with stat
+INFO:Joey_AI.backend.app:[BOOT] static_folder=/home/p12146/projects/Joey_AI/backend/../frontend/static template_folder=../frontend/templates
+INFO:Joey_AI.backend.app:[BOOT] dotenv=/home/p12146/projects/Joey_AI/.env env=http://10.0.0.90:11434 config=http://10.0.0.90:11434 resolved=http://10.0.0.90:11434(env)
+WARNING:werkzeug: * Debugger is active!
+INFO:werkzeug: * Debugger PIN: 491-087-973
+INFO:werkzeug:127.0.0.1 - - [24/Aug/2025 05:11:22] "GET /v1/health HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [24/Aug/2025 05:12:01] "GET / HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [24/Aug/2025 05:12:01] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+INFO:werkzeug:127.0.0.1 - - [24/Aug/2025 05:12:01] "[36mGET /static/img/joey_ai_main_logo.png HTTP/1.1[0m" 304 -
+INFO:werkzeug:127.0.0.1 - - [24/Aug/2025 05:12:01] "[36mGET /static/scripts.js HTTP/1.1[0m" 304 -
+INFO:werkzeug:127.0.0.1 - - [24/Aug/2025 05:12:01] "[36mGET /static/img/joey_ai_main_logo.png HTTP/1.1[0m" 304 -
+INFO:werkzeug:127.0.0.1 - - [24/Aug/2025 05:12:10] "POST /conversations HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [24/Aug/2025 05:12:10] "POST /conversations HTTP/1.1" 200 -
+INFO:routes.llm_gateway:[LLM] provider=ollama model=qwen2.5-coder:7b base=http://10.0.0.90:11434 stream=True
+INFO:routes.llm_gateway:[LLM] provider=ollama model=qwen2.5-coder:7b base=http://10.0.0.90:11434 stream=True
+INFO:werkzeug:127.0.0.1 - - [24/Aug/2025 05:12:29] "POST /v1/chat/completions HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [24/Aug/2025 05:12:30] "POST /v1/chat/completions HTTP/1.1" 200 -
+INFO:routes.llm_gateway:[LLM] provider=ollama model=qwen2.5-coder:7b base=http://10.0.0.90:11434 stream=False
+INFO:werkzeug:127.0.0.1 - - [24/Aug/2025 05:19:21] "POST /v1/chat/completions HTTP/1.1" 200 -
+INFO:routes.llm_gateway:[LLM] provider=ollama model=qwen2.5-coder:7b base=http://10.0.0.90:11434 stream=True
+INFO:werkzeug:127.0.0.1 - - [24/Aug/2025 05:19:22] "POST /v1/chat/completions HTTP/1.1" 200 -
+INFO:werkzeug: * Detected change in '/home/p12146/projects/Joey_AI/backend/routes/query_routes.py', reloading
+INFO:werkzeug: * Restarting with stat
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/flask/cli.py", line 897, in run_command
+    app = info.load_app()
+          ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/flask/cli.py", line 308, in load_app
+    app = locate_app(import_name, name)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/flask/cli.py", line 223, in locate_app
+    raise NoAppException(
+flask.cli.NoAppException: While importing 'Joey_AI.backend.app', an ImportError was raised:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/flask/cli.py", line 218, in locate_app
+    __import__(module_name)
+  File "/home/p12146/projects/Joey_AI/backend/app.py", line 3, in <module>
+    from routes.query_routes import query_bp
+  File "/home/p12146/projects/Joey_AI/backend/routes/query_routes.py", line 2, in <module>
+    from ..services.ollama_service import send_prompt
+ImportError: attempted relative import beyond top-level package
+
+ * Debugger is active!
+ * Debugger PIN: 877-006-454
+ * Detected change in '/home/p12146/projects/Joey_AI/backend/routes/query_routes.py', reloading
+INFO:werkzeug: * Restarting with stat
+INFO:Joey_AI.backend.app:[BOOT] static_folder=/home/p12146/projects/Joey_AI/backend/../frontend/static template_folder=../frontend/templates
+INFO:Joey_AI.backend.app:[BOOT] dotenv=/home/p12146/projects/Joey_AI/.env env=http://10.0.0.90:11434 config=http://10.0.0.90:11434 resolved=http://10.0.0.90:11434(env)
+WARNING:werkzeug: * Debugger is active!
+INFO:werkzeug: * Debugger PIN: 491-087-973
+INFO:werkzeug: * Detected change in '/home/p12146/projects/Joey_AI/backend/services/ollama_service.py', reloading
+INFO:werkzeug: * Restarting with stat
+INFO:Joey_AI.backend.app:[BOOT] static_folder=/home/p12146/projects/Joey_AI/backend/../frontend/static template_folder=../frontend/templates
+INFO:Joey_AI.backend.app:[BOOT] dotenv=/home/p12146/projects/Joey_AI/.env env=http://10.0.0.90:11434 config=http://10.0.0.90:11434 resolved=http://10.0.0.90:11434(env)
+WARNING:werkzeug: * Debugger is active!
+INFO:werkzeug: * Debugger PIN: 491-087-973
+INFO:werkzeug: * Detected change in '/home/p12146/projects/Joey_AI/backend/routes/memory_routes.py', reloading
+INFO:werkzeug: * Restarting with stat
+INFO:Joey_AI.backend.app:[BOOT] static_folder=/home/p12146/projects/Joey_AI/backend/../frontend/static template_folder=../frontend/templates
+INFO:Joey_AI.backend.app:[BOOT] dotenv=/home/p12146/projects/Joey_AI/.env env=http://10.0.0.90:11434 config=http://10.0.0.90:11434 resolved=http://10.0.0.90:11434(env)
+WARNING:werkzeug: * Debugger is active!
+INFO:werkzeug: * Debugger PIN: 491-087-973
+INFO:werkzeug: * Detected change in '/home/p12146/projects/Joey_AI/backend/routes/conversation_routes.py', reloading
+INFO:werkzeug: * Restarting with stat
+INFO:Joey_AI.backend.app:[BOOT] static_folder=/home/p12146/projects/Joey_AI/backend/../frontend/static template_folder=../frontend/templates
+INFO:Joey_AI.backend.app:[BOOT] dotenv=/home/p12146/projects/Joey_AI/.env env=http://10.0.0.90:11434 config=http://10.0.0.90:11434 resolved=http://10.0.0.90:11434(env)
+WARNING:werkzeug: * Debugger is active!
+INFO:werkzeug: * Debugger PIN: 491-087-973
+INFO:werkzeug: * Detected change in '/home/p12146/projects/Joey_AI/backend/routes/chat_routes.py', reloading
+INFO:werkzeug: * Restarting with stat
+INFO:Joey_AI.backend.app:[BOOT] static_folder=/home/p12146/projects/Joey_AI/backend/../frontend/static template_folder=../frontend/templates
+INFO:Joey_AI.backend.app:[BOOT] dotenv=/home/p12146/projects/Joey_AI/.env env=http://10.0.0.90:11434 config=http://10.0.0.90:11434 resolved=http://10.0.0.90:11434(env)
+WARNING:werkzeug: * Debugger is active!
+INFO:werkzeug: * Debugger PIN: 491-087-973
+INFO:werkzeug: * Detected change in '/home/p12146/projects/Joey_AI/backend/routes/chat_routes.py', reloading
+INFO:werkzeug: * Restarting with stat
+INFO:Joey_AI.backend.app:[BOOT] static_folder=/home/p12146/projects/Joey_AI/backend/../frontend/static template_folder=../frontend/templates
+INFO:Joey_AI.backend.app:[BOOT] dotenv=/home/p12146/projects/Joey_AI/.env env=http://10.0.0.90:11434 config=http://10.0.0.90:11434 resolved=http://10.0.0.90:11434(env)
+WARNING:werkzeug: * Debugger is active!
+INFO:werkzeug: * Debugger PIN: 491-087-973
+INFO:werkzeug: * Detected change in '/home/p12146/projects/Joey_AI/backend/routes/llm_gateway.py', reloading
+INFO:werkzeug: * Restarting with stat
+INFO:Joey_AI.backend.app:[BOOT] static_folder=/home/p12146/projects/Joey_AI/backend/../frontend/static template_folder=../frontend/templates
+INFO:Joey_AI.backend.app:[BOOT] dotenv=/home/p12146/projects/Joey_AI/.env env=http://10.0.0.90:11434 config=http://10.0.0.90:11434 resolved=http://10.0.0.90:11434(env)
+WARNING:werkzeug: * Debugger is active!
+INFO:werkzeug: * Debugger PIN: 491-087-973
+INFO:werkzeug: * Detected change in '/home/p12146/projects/Joey_AI/backend/routes/llm_gateway.py', reloading
+INFO:werkzeug: * Restarting with stat
+INFO:Joey_AI.backend.app:[BOOT] static_folder=/home/p12146/projects/Joey_AI/backend/../frontend/static template_folder=../frontend/templates
+INFO:Joey_AI.backend.app:[BOOT] dotenv=/home/p12146/projects/Joey_AI/.env env=http://10.0.0.90:11434 config=http://10.0.0.90:11434 resolved=http://10.0.0.90:11434(env)
+WARNING:werkzeug: * Debugger is active!
+INFO:werkzeug: * Debugger PIN: 491-087-973
+INFO:werkzeug: * Detected change in '/home/p12146/projects/Joey_AI/backend/routes/llm_gateway.py', reloading
+INFO:werkzeug: * Restarting with stat
+INFO:Joey_AI.backend.app:[BOOT] static_folder=/home/p12146/projects/Joey_AI/backend/../frontend/static template_folder=../frontend/templates
+INFO:Joey_AI.backend.app:[BOOT] dotenv=/home/p12146/projects/Joey_AI/.env env=http://10.0.0.90:11434 config=http://10.0.0.90:11434 resolved=http://10.0.0.90:11434(env)
+WARNING:werkzeug: * Debugger is active!
+INFO:werkzeug: * Debugger PIN: 491-087-973
+INFO:werkzeug: * Detected change in '/home/p12146/projects/Joey_AI/backend/routes/llm_gateway.py', reloading
+INFO:werkzeug: * Restarting with stat
+INFO:Joey_AI.backend.app:[BOOT] static_folder=/home/p12146/projects/Joey_AI/backend/../frontend/static template_folder=../frontend/templates
+INFO:Joey_AI.backend.app:[BOOT] dotenv=/home/p12146/projects/Joey_AI/.env env=http://10.0.0.90:11434 config=http://10.0.0.90:11434 resolved=http://10.0.0.90:11434(env)
+WARNING:werkzeug: * Debugger is active!
+INFO:werkzeug: * Debugger PIN: 491-087-973

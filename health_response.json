@@ -1,0 +1,8 @@
+{
+  "gateway": "ok",
+  "ollama": {
+    "base": "http://10.0.0.90:11434",
+    "ok": true,
+    "source": "env"
+  }
+}
