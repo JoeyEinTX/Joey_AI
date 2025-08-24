@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from backend.services.memory_service import (
+from ..services.memory_service import (
     add_note, update_note, delete_note, stats, export_notes, import_notes, recent_notes, search_notes
 )
 

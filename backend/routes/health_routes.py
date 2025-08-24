@@ -1,10 +1,20 @@
-from flask import Blueprint, jsonify
-from services.ollama_service import get_ollama_service, OllamaConfig
+from flask import Blueprint, jsonify, current_app
 import time
 import logging
+import requests
+import os
 
 logger = logging.getLogger(__name__)
 health_bp = Blueprint('health_bp', __name__)
+
+def resolve_ollama_base():
+    """Resolve OLLAMA_BASE with proper precedence: ENV > config > default"""
+    if "OLLAMA_BASE" in os.environ:
+        return os.environ["OLLAMA_BASE"], "env"
+    elif current_app.config.get("OLLAMA_BASE"):
+        return current_app.config["OLLAMA_BASE"], "config"
+    else:
+        return "http://127.0.0.1:11434", "default"
 
 @health_bp.route('/health', methods=['GET'])
 def health_check():
@@ -13,6 +23,29 @@ def health_check():
         "status": "healthy",
         "timestamp": int(time.time()),
         "service": "Joey_AI"
+    })
+
+@health_bp.route('/v1/health', methods=['GET'])
+def v1_health_check():
+    """Gateway health check with Ollama connectivity test."""
+    # Get base URL using resolve_ollama_base with source information
+    base, source = resolve_ollama_base()
+    
+    # Test Ollama connectivity
+    ollama_ok = False
+    try:
+        response = requests.get(f"{base}/api/tags", timeout=2)
+        ollama_ok = response.status_code == 200
+    except Exception:
+        ollama_ok = False
+    
+    return jsonify({
+        "gateway": "ok",
+        "ollama": {
+            "ok": ollama_ok,
+            "base": base,
+            "source": source
+        }
     })
 
 @health_bp.route('/health/ollama', methods=['GET'])

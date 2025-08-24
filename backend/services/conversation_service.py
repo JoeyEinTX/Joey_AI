@@ -3,9 +3,14 @@ import os
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 
-DB_PATH = os.path.join('storage', 'memory.db')
+# Get the project root directory (parent of backend)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+STORAGE_DIR = os.path.join(PROJECT_ROOT, 'storage')
+DB_PATH = os.path.join(STORAGE_DIR, 'memory.db')
 
 def get_conn():
+    # Ensure storage directory exists
+    os.makedirs(STORAGE_DIR, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA journal_mode=WAL;')

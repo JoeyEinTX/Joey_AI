@@ -115,10 +115,13 @@ async function sendPrompt() {
     document.getElementById('response').innerText = data.response;
 }
 
-# scripts/start_server.sh
-#!/bin/bash
-export FLASK_APP=backend/app.py
-flask run --host=0.0.0.0 --port=5000
+# Start dev
+
+Run the development server:
+
+```bash
+./scripts/dev.sh
+```
 
 # requirements.txt
 Flask==3.0.0
@@ -164,3 +167,95 @@ curl -X POST -H "Content-Type: application/json" \
 ## Auto-save Chats
 
 By default, every chat exchange is automatically saved to Memory (kind="chat"). You can toggle this feature ON/OFF from the dashboard header.
+
+## Editor Integration
+
+JoeyAI provides an OpenAI-compatible `/v1/chat/completions` endpoint that works with popular VSCode extensions like Continue and Cline.
+
+### Continue Extension Setup
+
+Create or update `~/.continue/config.json`:
+
+```json
+{
+  "models": [
+    {
+      "title": "JoeyAI Local",
+      "provider": "openai",
+      "model": "qwen2.5-coder:7b",
+      "apiKey": "joey-ai-local",
+      "apiBase": "http://localhost:5000/v1"
+    }
+  ],
+  "tabAutocompleteModel": {
+    "title": "JoeyAI Local",
+    "provider": "openai", 
+    "model": "qwen2.5-coder:7b",
+    "apiKey": "joey-ai-local",
+    "apiBase": "http://localhost:5000/v1"
+  }
+}
+```
+
+### Cline Extension Setup
+
+In VSCode, open Cline settings and configure:
+
+- **API Provider**: OpenAI
+- **Base URL**: `http://localhost:5000/v1`
+- **API Key**: `joey-ai-local` (any non-empty string)
+- **Model**: `qwen2.5-coder:7b`
+
+### Usage
+
+1. Start JoeyAI server: `./scripts/dev.sh`
+2. Ensure Ollama is running with your desired model
+3. Use Continue or Cline as normal - they'll connect to your local JoeyAI instance
+
+### Supported Features
+
+- ✅ Chat completions
+- ✅ Streaming responses
+- ✅ Temperature control
+- ✅ Custom model selection
+- ✅ Error handling and retries
+
+## Using Claude
+
+JoeyAI supports Anthropic's Claude models through the same `/v1/chat/completions` endpoint. To use Claude:
+
+1. **Set your API key**: Add your Anthropic API key to your environment:
+   ```bash
+   export ANTHROPIC_API_KEY=sk-ant-api03-your-key-here
+   ```
+
+2. **Use the web interface**: Select "Anthropic" from the provider dropdown and enter a Claude model name (e.g., `claude-3-sonnet-20240229`).
+
+3. **API usage**: Include `"provider": "anthropic"` in your request:
+   ```bash
+   curl -X POST http://localhost:5000/v1/chat/completions \
+     -H "Content-Type: application/json" \
+     -d '{
+       "provider": "anthropic",
+       "model": "claude-3-sonnet-20240229",
+       "temperature": 0.7,
+       "messages": [
+         {"role": "user", "content": "Hello, Claude!"}
+       ]
+     }'
+   ```
+
+The endpoint automatically handles message format conversion and returns OpenAI-compatible responses.
+
+## Connectivity checks
+
+Test your JoeyAI gateway and Ollama connectivity:
+
+```bash
+export OLLAMA_BASE=http://10.0.0.90:11434
+curl -s http://localhost:5000/v1/health
+curl -s http://localhost:5000/v1/chat/completions -H 'content-type: application/json' \
+  -d '{"model":"qwen2.5-coder:7b","messages":[{"role":"user","content":"hello"}],"provider":"ollama"}'
+```
+
+The `/v1/health` endpoint returns gateway status and Ollama connectivity. Error responses from `/v1/chat/completions` now include the base URL being used for debugging.

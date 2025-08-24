@@ -1,8 +1,8 @@
 from flask import Blueprint, request, jsonify
-from backend.services.conversation_service import (
+from ..services.conversation_service import (
     get_messages, add_message, search_messages, rename_conversation
 )
-from backend.services.ollama_service import send_prompt
+from ..services.ollama_service import send_prompt
 
 chat_bp = Blueprint('chat_bp', __name__)
 
@@ -28,7 +28,7 @@ def post_message(conv_id):
     assistant_msg = add_message(conv_id, 'assistant', model_reply)
     # 4) If first message, set title
     if user_msg and user_msg.get('id') and user_msg.get('role') == 'user':
-        from backend.services.conversation_service import get_conversation
+        from ..services.conversation_service import get_conversation
         conv = get_conversation(conv_id)
         if conv and (not conv.get('title') or not conv.get('title').strip()):
             preview = ' '.join(content.split()[:10])

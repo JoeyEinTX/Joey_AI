@@ -3,9 +3,16 @@
 <html>
 <head>
   <title>Joey_AI Dashboard</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <!-- Prism.js for syntax highlighting -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+  <!-- markdown-it for markdown rendering -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/13.0.2/markdown-it.min.js"></script>
 </head>
 <body class="theme-joey">
+  <!-- LOGO_SRC: {{ url_for('static', filename='img/joey_ai_main_logo.png') }} -->
   <div class="shell">
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
@@ -15,31 +22,61 @@
       <input type="text" id="project-search" placeholder="Search messages..." />
       <div id="project-list" class="project-list"></div>
     </aside>
-    <header id="topbar" class="topbar">
+    <header id="topbar" class="header">
       <div class="brand">
-        <img id="brandWordmark" src="/static/img/joeyai_wordmark.png" alt="JoeyAI" />
+        <img class="brand-logo" src="{{ url_for('static', filename='img/joey_ai_main_logo.png') }}" alt="JoeyAI" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';" />
+        <span class="brand-text">JoeyAI</span>
+        <span class="health-dot" id="health-dot"></span>
+      </div>
+      <div class="model-controls">
+        <div class="control-group">
+          <label for="provider-select">Provider:</label>
+          <select id="provider-select" class="control-input">
+            <option value="ollama">Ollama</option>
+            <option value="anthropic">Anthropic</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="model-input">Model:</label>
+          <input type="text" id="model-input" class="control-input" placeholder="Model name" value="qwen2.5-coder:7b">
+        </div>
+        <div class="temperature-control">
+          <label for="temperature-slider">Temp:</label>
+          <input type="range" id="temperature-slider" min="0" max="1" step="0.1" value="0.7" class="control-slider">
+          <span id="temperature-value">0.7</span>
+        </div>
       </div>
       <div class="topbar-actions">
-        <div class="status-indicator" id="status-indicator">
-          <span id="status-text">Ready</span>
+        <div class="gear" id="gear-dropdown">
+          <button class="gear-btn" id="gear-btn">⚙️</button>
+          <div class="gear-menu hidden" id="gear-menu">
+            <div class="gear-item" data-action="memory">Memory</div>
+            <div class="gear-item toggle-item">
+              <label>
+                <input type="checkbox" id="autosave-toggle" checked>
+                Auto-save Chats
+              </label>
+            </div>
+            <div class="gear-item" data-action="settings">Settings…</div>
+            <div class="gear-item" data-action="about">About</div>
+          </div>
         </div>
-        <label class="autosave-toggle">
-          <input type="checkbox" id="autosave-chats-toggle" checked>
-          Auto-save Chats
-        </label>
-        <button id="btnMemory" class="btn">Memory</button>
       </div>
     </header>
     <main class="main">
-      <section id="logoHero" class="logo-hero">
-        <img src="/static/img/joeyai_poster.png" alt="JoeyAI Poster" />
-      </section>
-      <section id="chatArea" class="chat-area start">
+      <div class="chat-column">
+        <div id="hero" class="hero">
+          <img id="hero-logo"
+               src="{{ url_for('static', filename='img/joey_ai_main_logo.png') }}"
+               alt="JoeyAI"
+               onerror="this.style.display='none'; document.getElementById('brand-fallback').style.display='inline-block'; console.warn('Logo load failed:', this.src)" />
+          <span id="brand-fallback" style="display:none;font-weight:800;">JoeyAI</span>
+        </div>
         <div id="messages" class="messages"></div>
         <form id="composer" class="composer" autocomplete="off">
-          <textarea id="promptInput" placeholder="Enter your prompt here…"></textarea>
+          <textarea id="composer-input" placeholder="Enter your prompt here…"></textarea>
           <div class="composer-actions">
-            <button id="sendBtn" type="submit" class="btn primary">Send</button>
+            <button id="send-btn" type="submit" class="btn primary">Send</button>
             <button id="advancedBtn" type="button" class="btn">Advanced</button>
             <button id="clearBtn" type="button" class="btn danger">Clear Chat</button>
             <button id="deepBtn" type="button" class="btn pill">Deep Reasoning</button>
@@ -47,9 +84,12 @@
             <button id="edgeBtn" type="button" class="btn pill">Edge Cases</button>
           </div>
         </form>
-      </section>
+      </div>
     </main>
   </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
 
   <!-- Memory Modal -->
   <div id="memoryModal" class="modal hidden" aria-hidden="true">
@@ -68,6 +108,6 @@
     </div>
   </div>
 
-  <script src="/static/scripts.js"></script>
+  <script src="{{ url_for('static', filename='scripts.js') }}"></script>
 </body>
 </html>
