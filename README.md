@@ -1,5 +1,21 @@
 # Joey_AI Dashboard - Git Repo Scaffold
 
+## Cline Operation Policy
+
+**ALWAYS run these commands when working with Joey_AI:**
+- **PRE**: `./scripts/stop.sh` (before making any changes)
+- **POST**: `./scripts/restart.sh && ./scripts/status.sh` (after edits)
+- Never start a second server or use port 5001
+- When verifying chat, if stream is silent for 8s, toggle Stream OFF and test non-stream
+
+## Runbook
+
+**Development Workflow:**
+- Before coding: `./scripts/stop.sh`
+- After edits: `./scripts/restart.sh` then `./scripts/status.sh`
+- Health must show: base http://10.0.0.90:11434 and ok:true
+- UI test: hard refresh (Ctrl+Shift+R), click **Test Render**, then send a prompt
+
 # Folder structure:
 # Joey_AI/
 # ├── backend/

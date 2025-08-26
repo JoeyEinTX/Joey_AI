@@ -31,13 +31,25 @@ def v1_health_check():
     # Get base URL using resolve_ollama_base with source information
     base, source = resolve_ollama_base()
     
-    # Test Ollama connectivity
+    # Test Ollama connectivity and get models count
     ollama_ok = False
+    models_count = -1
+    
     try:
         response = requests.get(f"{base}/api/tags", timeout=2)
         ollama_ok = response.status_code == 200
-    except Exception:
+        
+        if ollama_ok:
+            data = response.json()
+            models_count = len(data.get('models', []))
+            logger.info(f"Health check: Found {models_count} models")
+        else:
+            logger.warning(f"Health check: HTTP {response.status_code} from Ollama")
+            
+    except Exception as e:
+        logger.error(f"Health check: Ollama connection failed: {str(e)}")
         ollama_ok = False
+        models_count = -1
     
     return jsonify({
         "gateway": "ok",
@@ -45,7 +57,8 @@ def v1_health_check():
             "ok": ollama_ok,
             "base": base,
             "source": source
-        }
+        },
+        "models_count": models_count
     })
 
 @health_bp.route('/health/ollama', methods=['GET'])

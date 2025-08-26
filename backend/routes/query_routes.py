@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from ..services.ollama_service import send_prompt
 import time
 import logging
-from config import JoeyAIConfig
+from ..config import JoeyAIConfig
 from ..services import memory_service as mem
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ def query():
     # Auto-save chat to memory
     if getattr(JoeyAIConfig, 'AUTO_SAVE_CHATS', True):
         try:
-            model_name = getattr(__import__('config').OllamaConfig, 'MODEL', 'unknown')
+            model_name = getattr(__import__('backend.config').OllamaConfig, 'MODEL', 'unknown')
             transcript = f"""[CHAT]\nuser:\n{prompt}\n\nassistant:\n{response}\n\nmeta:\nmodel={model_name}, route=/query"""
             mem.add_note(kind="chat", text=transcript)
         except Exception as e:
@@ -58,7 +58,7 @@ def advanced_query():
     # Auto-save chat to memory
     if getattr(JoeyAIConfig, 'AUTO_SAVE_CHATS', True):
         try:
-            model_name = getattr(__import__('config').OllamaConfig, 'MODEL', 'unknown')
+            model_name = getattr(__import__('backend.config').OllamaConfig, 'MODEL', 'unknown')
             transcript = f"""[CHAT]\nuser:\n{prompt}\n\nassistant:\n{response}\n\nmeta:\nmodel={model_name}, route=/query/advanced"""
             mem.add_note(kind="chat", text=transcript)
         except Exception as e:

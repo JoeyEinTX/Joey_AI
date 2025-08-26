@@ -2,7 +2,7 @@ import requests
 import time
 import logging
 from typing import Optional, Dict, Any
-from config import OllamaConfig
+from ..config import OllamaConfig
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

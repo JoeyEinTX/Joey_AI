@@ -16,11 +16,11 @@
   <div class="shell">
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
-        <h2>Projects</h2>
-        <button id="new-project-btn">New Project</button>
+        <h2>Conversations</h2>
+        <button id="new-conversation-btn">New Chat</button>
       </div>
-      <input type="text" id="project-search" placeholder="Search messages..." />
-      <div id="project-list" class="project-list"></div>
+      <input type="text" id="conversation-search" placeholder="Search conversations..." />
+      <div id="conversation-list" class="conversation-list"></div>
     </aside>
     <header id="topbar" class="header">
       <div class="brand">
@@ -37,8 +37,20 @@
           </select>
         </div>
         <div class="control-group">
-          <label for="model-input">Model:</label>
-          <input type="text" id="model-input" class="control-input" placeholder="Model name" value="qwen2.5-coder:7b">
+          <label for="model-select">Model:</label>
+          <div class="model-selector">
+            <select id="model-select" class="control-input">
+              <option value="">Loading...</option>
+            </select>
+            <button id="refresh-models-btn" class="refresh-btn" title="Refresh models">↻</button>
+          </div>
+          <div class="manual-model-container" id="manual-model-container" style="display: none;">
+            <input type="text" id="model-manual" class="control-input" placeholder="type model name (e.g., qwen2.5-coder:7b)" style="font-size: 10px; margin-top: 2px;">
+            <div class="manual-model-actions">
+              <button id="test-model-btn" class="test-btn" title="Test model">Test</button>
+              <a href="/v1/models/debug" target="_blank" id="models-debug-link" class="debug-link" title="Models Debug">Debug</a>
+            </div>
+          </div>
         </div>
         <div class="temperature-control">
           <label for="temperature-slider">Temp:</label>
@@ -47,6 +59,7 @@
         </div>
       </div>
       <div class="topbar-actions">
+        <button id="test-render-btn" class="btn" style="margin-right: 8px;">Test Render</button>
         <div class="gear" id="gear-dropdown">
           <button class="gear-btn" id="gear-btn">⚙️</button>
           <div class="gear-menu hidden" id="gear-menu">
@@ -66,11 +79,7 @@
     <main class="main">
       <div class="chat-column">
         <div id="hero" class="hero">
-          <img id="hero-logo"
-               src="{{ url_for('static', filename='img/joey_ai_main_logo.png') }}"
-               alt="JoeyAI"
-               onerror="this.style.display='none'; document.getElementById('brand-fallback').style.display='inline-block'; console.warn('Logo load failed:', this.src)" />
-          <span id="brand-fallback" style="display:none;font-weight:800;">JoeyAI</span>
+          <img id="hero-logo" src="{{ url_for('static', filename='img/joey_ai_main_logo.png') }}" alt="JoeyAI">
         </div>
         <div id="messages" class="messages"></div>
         <form id="composer" class="composer" autocomplete="off">

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, current_app
+from flask import Flask, render_template, current_app, jsonify, url_for
 from dotenv import load_dotenv, find_dotenv
 from .routes.query_routes import query_bp
 from .routes.preset_routes import preset_bp
@@ -7,8 +7,9 @@ from .routes.memory_routes import memory_bp
 from .routes.conversation_routes import conversations_bp
 from .routes.chat_routes import chat_bp
 from .routes.llm_gateway import llm_bp
+from .routes.models_routes import models_bp
 from .services.conversation_service import init_db as init_conversation_db
-from config import FlaskConfig
+from .config import FlaskConfig
 import logging
 import os
 
@@ -53,10 +54,33 @@ app.register_blueprint(memory_bp)
 app.register_blueprint(conversations_bp)
 app.register_blueprint(chat_bp)
 app.register_blueprint(llm_bp)
+app.register_blueprint(models_bp)
 
 @app.route('/')
 def home():
     return render_template('index.html')
+
+@app.route('/v1/debug/static')
+def debug_static():
+    """Debug endpoint to check static file configuration"""
+    logo_path = os.path.join(current_app.static_folder, 'img', 'joey_ai_main_logo.png')
+    return jsonify({
+        "static_folder": current_app.static_folder,
+        "logo_url": url_for('static', filename='img/joey_ai_main_logo.png'),
+        "logo_exists": os.path.exists(logo_path)
+    })
+
+@app.route('/v1/dev/hello')
+def dev_hello():
+    """Test route for render sanity checking"""
+    return jsonify({
+        "choices": [{
+            "message": {
+                "role": "assistant",
+                "content": "**Hello from /v1/dev/hello**"
+            }
+        }]
+    })
 
 init_conversation_db()
 

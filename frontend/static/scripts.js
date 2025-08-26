@@ -1,31 +1,45 @@
-// Chat send/stream event wiring - repaired implementation
+// Chat send/stream event wiring - enhanced implementation with DOM guards and proper rendering
 document.addEventListener('DOMContentLoaded', () => {
   console.log('DOM loaded - binding event listeners');
   
-  // Required elements per task specification
+  // Required elements per task specification with strong DOM guards
+  const msgs = document.getElementById('messages');
+  if (!msgs) { 
+    console.error('#messages missing'); 
+    alert('Fatal: #messages missing'); 
+    return; 
+  }
+  
   const ta = document.getElementById('composer-input');   // textarea
   const btn = document.getElementById('send-btn');         // send button
-  const msgs = document.getElementById('messages');        // scroll container
   
   // Additional UI elements
   const composer = document.getElementById('composer');
   const providerSelect = document.getElementById('provider-select');
-  const modelInput = document.getElementById('model-input');
+  const modelSelect = document.getElementById('model-select');
+  const refreshModelsBtn = document.getElementById('refresh-models-btn');
   const temperatureSlider = document.getElementById('temperature-slider');
   const temperatureValue = document.getElementById('temperature-value');
   const toastContainer = document.getElementById('toast-container');
   const clearBtn = document.getElementById('clearBtn');
-  const newProjectBtn = document.getElementById('new-project-btn');
-  const projectList = document.getElementById('project-list');
+  const newConversationBtn = document.getElementById('new-conversation-btn');
+  const conversationList = document.getElementById('conversation-list');
+  const conversationSearch = document.getElementById('conversation-search');
+  const healthDot = document.getElementById('health-dot');
+  const testRenderBtn = document.getElementById('test-render-btn');
+  const manualModelContainer = document.getElementById('manual-model-container');
+  const manualModelInput = document.getElementById('model-manual');
+  const testModelBtn = document.getElementById('test-model-btn');
   
   // Verify required elements exist
   if (!ta) console.error('Missing textarea element: #composer-input');
   if (!btn) console.error('Missing send button element: #send-btn');
-  if (!msgs) console.error('Missing messages container element: #messages');
   
   // State management
   let currentConversationId = null;
   let isStreaming = false;
+  let healthStatus = { ok: false, base: null, state: 'offline' }; // online | degraded | offline
+  let lastSendFailed = false;
   
   // Initialize markdown-it
   const md = window.markdownit({
@@ -41,6 +55,122 @@ document.addEventListener('DOMContentLoaded', () => {
       return '';
     }
   });
+
+  // ensureAssistantBubble function per task requirements
+  function ensureAssistantBubble(initial = "") {
+    let b = document.querySelector("#messages .message.assistant.pending");
+    if (!b) {
+      b = document.createElement("div");
+      b.className = "message assistant pending";
+      b.innerHTML = "<div class='content'></div>";
+      msgs.appendChild(b);
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+    const c = b.querySelector(".content");
+    if (initial) c.textContent = initial;
+    return { bubble: b, contentEl: c };
+  }
+
+  // Health checking functionality with enhanced state tracking
+  async function checkHealth() {
+    try {
+      const response = await fetch('/v1/health');
+      const health = await response.json();
+      
+      // Extract the actual health status from the API response
+      const isHealthy = health.ollama && health.ollama.ok;
+      const baseUrl = health.ollama ? health.ollama.base : 'unknown';
+      
+      // Determine state: online | degraded | offline
+      let newState;
+      if (isHealthy) {
+        newState = lastSendFailed ? 'degraded' : 'online';
+      } else {
+        newState = 'offline';
+      }
+      
+      healthStatus = { ok: isHealthy, base: baseUrl, state: newState };
+      
+      // Update health dot and base display
+      if (healthDot) {
+        healthDot.className = `health-dot ${newState}`;
+        
+        if (newState === 'online') {
+          healthDot.title = `Online - Base: ${baseUrl}`;
+          healthDot.textContent = `Online - ${baseUrl}`;
+        } else if (newState === 'degraded') {
+          healthDot.title = `Degraded - Base: ${baseUrl}`;
+          healthDot.textContent = `Degraded - ${baseUrl}`;
+        } else {
+          healthDot.title = `Backend offline @ ${baseUrl}`;
+          healthDot.textContent = `Offline - ${baseUrl}`;
+        }
+      }
+      
+      // Enable/disable send button and textarea based on health
+      const isOffline = newState === 'offline';
+      if (btn) {
+        btn.disabled = isOffline;
+        if (isOffline) {
+          btn.title = `Backend offline @ ${baseUrl}`;
+        } else {
+          btn.title = '';
+        }
+      }
+      if (ta) {
+        ta.disabled = isOffline;
+        if (isOffline) {
+          ta.placeholder = `Backend offline @ ${baseUrl}`;
+        } else {
+          ta.placeholder = 'Enter your prompt here…';
+        }
+      }
+      
+    } catch (error) {
+      console.error('Health check failed:', error);
+      healthStatus = { ok: false, base: 'unknown', state: 'offline' };
+      
+      if (healthDot) {
+        healthDot.className = 'health-dot offline';
+        healthDot.title = 'Health check failed';
+        healthDot.textContent = 'Offline - unknown';
+      }
+      
+      if (btn) {
+        btn.disabled = true;
+        btn.title = 'Backend offline @ unknown';
+      }
+      if (ta) {
+        ta.disabled = true;
+        ta.placeholder = 'Backend offline @ unknown';
+      }
+    }
+  }
+
+  // Start health checking every 10 seconds per requirements
+  checkHealth(); // Initial check
+  setInterval(checkHealth, 10000);
+
+  // Test Render button functionality
+  if (testRenderBtn) {
+    testRenderBtn.addEventListener('click', async () => {
+      console.log('Test Render button clicked');
+      try {
+        const response = await fetch('/v1/dev/hello');
+        const data = await response.json();
+        const text = data?.choices?.[0]?.message?.content || "";
+        
+        const { bubble } = ensureAssistantBubble();
+        bubble.classList.remove("pending");
+        bubble.innerHTML = renderAssistantMessage(text);
+        
+        console.log('Test render completed');
+      } catch (error) {
+        console.error('Test render failed:', error);
+        showToast('Test render failed: ' + error.message, 'error');
+      }
+    });
+  }
 
   // Bind events after DOMContentLoaded
   if (btn) {
@@ -65,12 +195,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // onSend implementation
+  // onSend implementation with enhanced logging and retry logic
   async function onSend() {
     console.log('onSend fired');
     
     if (!ta || !btn || !msgs) {
       console.error('Required elements missing for onSend');
+      return;
+    }
+    
+    // Check health status before sending
+    if (healthStatus.state === 'offline') {
+      showToast(`Backend offline @ ${healthStatus.base || 'unknown'}`, 'error');
       return;
     }
     
@@ -107,34 +243,91 @@ document.addEventListener('DOMContentLoaded', () => {
     ta.value = '';
     isStreaming = true;
     
-    // Get current model settings with defaults
-    const provider = providerSelect?.value || 'ollama';
-    const model = modelInput?.value || 'qwen2.5-coder:7b';
+    // Get current model settings - use manual input if dropdown is empty
+    const provider = (providerSelect?.value || 'ollama').toLowerCase();
+    let model = modelSelect?.value;
+    
+    // If no model selected or "(no models)", use manual input
+    if (!model || model === '' || modelSelect?.textContent?.includes('(no models)')) {
+      model = getManualModelForProvider(provider) || 'qwen2.5-coder:7b';
+    }
+    
     const temperature = parseFloat(temperatureSlider?.value || 0.2);
     
     // Build messages array (simplified for now)
     const messages = [{ role: 'user', content: text }];
     
+    // Build payload
+    const payload = {
+      model,
+      provider,
+      temperature,
+      messages
+    };
+    
+    // Log exact payload at send start per requirements
+    console.log('UI PAYLOAD', payload);
+    
     try {
-      // Call startStream
-      await startStream({
-        model,
-        provider,
-        temperature,
-        messages
-      });
+      // Try stream first, then fallback with retries
+      await sendWithRetries(payload);
       
-      console.log('Stream completed successfully');
+      // Mark send as successful
+      lastSendFailed = false;
+      console.log('Send completed successfully');
     } catch (error) {
-      console.error('Stream failed:', error);
-      showToast('Send failed: ' + error.message, 'error');
+      console.error('Send failed:', error);
+      lastSendFailed = true;
+      
+      // Show toast with copy payload button
+      showToastWithCopyPayload('Send failed: ' + error.message, payload);
     } finally {
       // Re-enable btn
-      btn.disabled = false;
+      btn.disabled = healthStatus.state === 'offline';
       btn.removeAttribute('aria-busy');
       btn.textContent = 'Send';
       isStreaming = false;
+      
+      // Refresh sidebar to show updated conversation
+      refreshSidebar();
     }
+  }
+
+  // Non-stream path implementation per requirements
+  async function sendNonStream(payload) {
+    console.log('Starting non-stream request');
+    
+    const response = await fetch('/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...payload,
+        stream: false
+      }),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Non-stream fetch failed:', response.status, errorText);
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    const text = data?.choices?.[0]?.message?.content
+              || data?.message?.content
+              || data?.content
+              || "";
+    
+    if (!text) console.warn("Non-stream: empty text", data);
+    
+    console.log('UI NONSTREAM TEXT len', text.length);
+    
+    ensureAssistantBubble(text);
+    const { bubble } = ensureAssistantBubble();
+    bubble.classList.remove("pending");
+    bubble.innerHTML = renderAssistantMessage(text);
   }
 
   // Robust SSE reader function
@@ -153,7 +346,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Decode chunk and add to buffer
         buffer += decoder.decode(value, { stream: true });
-        console.log(`SSE chunk len=${value.length}`);
         
         // Split on double newlines to get complete SSE frames
         const frames = buffer.split('\n\n');
@@ -204,14 +396,70 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // startStream implementation with robust SSE handling and fallback
-  async function startStream(payload) {
+  // Enhanced send with retries implementation
+  async function sendWithRetries(payload) {
+    const provider = payload.provider;
+    const model = payload.model;
+    const base = healthStatus.base || 'unknown';
+    
+    // Try stream first
+    console.log(`SEND try=1 stream=true provider=${provider} model=${model} base=${base}`);
+    
+    try {
+      await startStreamWithTimeout(payload);
+      console.log(`SEND ok len=${document.querySelector('#messages .message.assistant:last-child .content')?.textContent?.length || 0}`);
+      return;
+    } catch (error) {
+      console.log(`SEND fail status=${error.status || 'unknown'}`);
+      
+      // If stream failed, try non-stream with exponential backoff
+      const delays = [1000, 2000, 4000]; // 1s, 2s, 4s
+      
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const tryNum = attempt + 2; // Since stream was try 1
+        
+        if (attempt > 0) {
+          await new Promise(resolve => setTimeout(resolve, delays[attempt - 1]));
+        }
+        
+        console.log(`SEND try=${tryNum} stream=false provider=${provider} model=${model} base=${base}`);
+        
+        try {
+          await sendNonStreamWithLogging(payload);
+          console.log(`SEND ok len=${document.querySelector('#messages .message.assistant:last-child .content')?.textContent?.length || 0}`);
+          return;
+        } catch (retryError) {
+          console.log(`SEND fail status=${retryError.status || 'unknown'}`);
+          
+          if (attempt === 2) { // Last attempt
+            throw retryError;
+          }
+        }
+      }
+    }
+  }
+
+  // startStream with 6-second timeout
+  async function startStreamWithTimeout(payload) {
     console.log('Starting stream with payload:', payload);
+    
+    // Ensure assistant bubble immediately per requirements
+    const { bubble, contentEl } = ensureAssistantBubble();
     
     // Create abort controller for timeout
     const abortController = new AbortController();
     let timeoutId;
-    let lastChunkTime = Date.now();
+    let fullText = '';
+    let streamCompleted = false;
+    let hasReceivedChunks = false;
+    
+    // Set up 6-second timeout per requirements
+    timeoutId = setTimeout(() => {
+      if (!streamCompleted && !hasReceivedChunks) {
+        console.log('6s timeout - no chunks received');
+        abortController.abort();
+      }
+    }, 6000);
     
     try {
       const response = await fetch('/v1/chat/completions', {
@@ -228,55 +476,20 @@ document.addEventListener('DOMContentLoaded', () => {
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Fetch failed:', response.status, errorText);
-        
-        // Fetch debug info on failure
-        try {
-          const debugResponse = await fetch('/v1/debug/echo');
-          const debugData = await debugResponse.json();
-          console.log('DEBUG ECHO', debugData);
-          
-          const debugStr = JSON.stringify(debugData).substring(0, 200);
-          showToast(`HTTP ${response.status}: ${response.statusText} | Debug: ${debugStr}`, 'error');
-        } catch (debugError) {
-          console.error('Failed to fetch debug info:', debugError);
-          showToast(`HTTP ${response.status}: ${response.statusText}`, 'error');
-        }
-        
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        console.error('Stream fetch failed:', response.status, errorText);
+        const error = new Error(`HTTP ${response.status}: ${response.statusText}`);
+        error.status = response.status;
+        throw error;
       }
       
       console.log('Stream response received, starting to read...');
       
-      // Create assistant bubble for streaming
-      const assistantBubble = document.createElement('div');
-      assistantBubble.className = 'msg assistant streaming';
-      assistantBubble.textContent = '';
-      msgs.appendChild(assistantBubble);
-      autoScroll();
-      
-      let fullText = '';
-      let streamCompleted = false;
-      
-      // Set up 8-second inactivity timer
-      const resetTimeout = () => {
-        if (timeoutId) clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => {
-          if (!streamCompleted) {
-            console.log('Stream timeout - falling back to non-stream');
-            abortController.abort();
-          }
-        }, 8000);
-      };
-      
-      resetTimeout(); // Start initial timeout
-      
       // Handle streaming chunks
       const onChunk = (piece) => {
-        lastChunkTime = Date.now();
-        resetTimeout(); // Reset timeout on each chunk
+        hasReceivedChunks = true;
+        if (timeoutId) clearTimeout(timeoutId); // Clear timeout once we get chunks
         fullText += piece;
-        assistantBubble.textContent = fullText;
+        contentEl.textContent = fullText;
         autoScroll();
       };
       
@@ -284,9 +497,9 @@ document.addEventListener('DOMContentLoaded', () => {
         streamCompleted = true;
         if (timeoutId) clearTimeout(timeoutId);
         
-        // Re-render with markdown and syntax highlighting
-        assistantBubble.classList.remove('streaming');
-        assistantBubble.innerHTML = renderAssistantMessage(fullText);
+        // Remove .pending and re-render with markdown per requirements
+        bubble.classList.remove('pending');
+        bubble.innerHTML = renderAssistantMessage(fullText);
         autoScroll();
       };
       
@@ -296,66 +509,56 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) {
       if (timeoutId) clearTimeout(timeoutId);
       
-      // Check if this was a timeout/abort - if so, try fallback
+      // Check if this was a timeout/abort
       if (error.name === 'AbortError' || error.message.includes('aborted')) {
-        console.log('Stream aborted, attempting non-stream fallback');
-        
-        try {
-          // Remove streaming bubble
-          if (msgs.lastElementChild?.classList.contains('streaming')) {
-            msgs.removeChild(msgs.lastElementChild);
-          }
-          
-          // Make non-stream request
-          const fallbackResponse = await fetch('/v1/chat/completions', {
-            method: 'POST',
-            body: JSON.stringify({
-              ...payload,
-              stream: false
-            }),
-            headers: {
-              'Content-Type': 'application/json'
-            }
-          });
-          
-          if (!fallbackResponse.ok) {
-            // Fetch debug info on fallback failure too
-            try {
-              const debugResponse = await fetch('/v1/debug/echo');
-              const debugData = await debugResponse.json();
-              console.log('DEBUG ECHO', debugData);
-              
-              const debugStr = JSON.stringify(debugData).substring(0, 200);
-              throw new Error(`Fallback failed: ${fallbackResponse.status} | Debug: ${debugStr}`);
-            } catch (debugError) {
-              console.error('Failed to fetch debug info:', debugError);
-              throw new Error(`Fallback failed: ${fallbackResponse.status}`);
-            }
-          }
-          
-          const result = await fallbackResponse.json();
-          const content = result.choices?.[0]?.message?.content || 'No response received';
-          
-          // Create assistant bubble with full content
-          const assistantBubble = document.createElement('div');
-          assistantBubble.className = 'msg assistant';
-          assistantBubble.innerHTML = renderAssistantMessage(content);
-          msgs.appendChild(assistantBubble);
-          autoScroll();
-          
-          // Show fallback toast
-          showToast('Stream fell back to non-stream', 'warning');
-          
-        } catch (fallbackError) {
-          console.error('Fallback request failed:', fallbackError);
-          showToast('Both stream and fallback failed: ' + fallbackError.message, 'error');
-          throw fallbackError;
-        }
+        const timeoutError = new Error('Stream timeout - no chunks in 6s');
+        timeoutError.status = 'timeout';
+        throw timeoutError;
       } else {
-        console.error('startStream error:', error);
+        bubble.classList.remove('pending');
+        bubble.innerHTML = '<div class="content">Error: ' + error.message + '</div>';
         throw error;
       }
     }
+  }
+
+  // Non-stream with logging
+  async function sendNonStreamWithLogging(payload) {
+    console.log('Starting non-stream request');
+    
+    const { bubble, contentEl } = ensureAssistantBubble();
+    
+    const response = await fetch('/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...payload,
+        stream: false
+      }),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Non-stream fetch failed:', response.status, errorText);
+      const error = new Error(`HTTP ${response.status}: ${response.statusText}`);
+      error.status = response.status;
+      throw error;
+    }
+    
+    const data = await response.json();
+    const text = data?.choices?.[0]?.message?.content
+              || data?.message?.content
+              || data?.content
+              || "";
+    
+    if (!text) console.warn("Non-stream: empty text", data);
+    
+    // Render the returned text
+    bubble.classList.remove('pending');
+    bubble.innerHTML = renderAssistantMessage(text);
+    autoScroll();
   }
   
   // Helper function to render assistant messages with markdown and syntax highlighting
@@ -363,10 +566,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const rendered = md.render(content);
     // Create a temporary element to add copy buttons
     const temp = document.createElement('div');
+    temp.className = 'content';
     temp.innerHTML = rendered;
     addCopyButtonsToCodeBlocks(temp);
     Prism.highlightAllUnder(temp);
-    return temp.innerHTML;
+    return temp.outerHTML;
   }
   
   // Helper functions
@@ -376,6 +580,9 @@ document.addEventListener('DOMContentLoaded', () => {
     bubble.textContent = content;
     msgs.appendChild(bubble);
     autoScroll();
+    
+    // Show messages container and hide hero
+    document.body.classList.add('has-started');
   }
   
   function autoScroll() {
@@ -404,7 +611,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
   
-  // Toast notifications
+  // Enhanced toast notifications with copy payload functionality
   function showToast(message, type = 'error') {
     console.log('Toast:', type, message);
     if (!toastContainer) return;
@@ -424,6 +631,49 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }, 300);
     }, 5000);
+  }
+  
+  // Toast with copy payload button for send failures
+  function showToastWithCopyPayload(message, payload) {
+    console.log('Toast with copy payload:', message);
+    if (!toastContainer) return;
+    
+    const toast = document.createElement('div');
+    toast.className = 'toast error';
+    
+    const messageSpan = document.createElement('span');
+    messageSpan.textContent = message;
+    
+    const copyBtn = document.createElement('button');
+    copyBtn.textContent = 'Copy payload';
+    copyBtn.style.marginLeft = '8px';
+    copyBtn.style.padding = '2px 6px';
+    copyBtn.style.fontSize = '12px';
+    copyBtn.style.background = 'rgba(255,255,255,0.2)';
+    copyBtn.style.border = '1px solid rgba(255,255,255,0.3)';
+    copyBtn.style.borderRadius = '3px';
+    copyBtn.style.color = 'white';
+    copyBtn.style.cursor = 'pointer';
+    
+    copyBtn.onclick = () => {
+      navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => copyBtn.textContent = 'Copy payload', 2000);
+    };
+    
+    toast.appendChild(messageSpan);
+    toast.appendChild(copyBtn);
+    toastContainer.appendChild(toast);
+    
+    // Auto-remove after 8 seconds (longer for copy action)
+    setTimeout(() => {
+      toast.classList.add('fade-out');
+      setTimeout(() => {
+        if (toast.parentNode) {
+          toast.parentNode.removeChild(toast);
+        }
+      }, 300);
+    }, 8000);
   }
   
   // Conversation management (simplified)
@@ -457,8 +707,177 @@ document.addEventListener('DOMContentLoaded', () => {
         msgs.innerHTML = '';
       }
       currentConversationId = null;
+      document.body.classList.remove('has-started');
       console.log('Chat cleared');
     });
+  }
+  
+  // Enhanced model loading with resilience
+  async function fetchModels(provider = null) {
+    try {
+      const url = provider ? `/v1/models?provider=${provider}` : '/v1/models';
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Failed to fetch models:', error);
+      throw error;
+    }
+  }
+  
+  async function populateModelDropdown(provider = null) {
+    if (!modelSelect) return;
+    
+    // Store current selection to preserve it
+    const currentSelection = modelSelect.value;
+    
+    // Show loading state
+    modelSelect.disabled = true;
+    const loadingOption = document.createElement('option');
+    loadingOption.value = '';
+    loadingOption.textContent = 'Loading...';
+    modelSelect.innerHTML = '';
+    modelSelect.appendChild(loadingOption);
+    
+    try {
+      const currentProvider = provider || providerSelect?.value || 'ollama';
+      const modelsData = await fetchModels(currentProvider);
+      
+      // Clear dropdown
+      modelSelect.innerHTML = '';
+      
+      // Get models for current provider
+      let models = [];
+      if (currentProvider === 'ollama' && modelsData.ollama) {
+        models = modelsData.ollama.map(m => ({ name: m.name, display: m.name }));
+      } else if (currentProvider === 'anthropic' && modelsData.anthropic) {
+        models = modelsData.anthropic.map(m => ({ name: m.name, display: m.name }));
+      }
+      
+      if (models.length === 0) {
+        // Show "(no models)" option when list is empty
+        const noModelsOption = document.createElement('option');
+        noModelsOption.value = '';
+        noModelsOption.textContent = '(no models)';
+        noModelsOption.style.fontStyle = 'italic';
+        noModelsOption.style.opacity = '0.7';
+        modelSelect.appendChild(noModelsOption);
+        
+        // Show manual model container
+        if (manualModelContainer) {
+          manualModelContainer.style.display = 'flex';
+        }
+        
+        // Show toast with base URL and debug suggestion
+        const base = healthStatus.base || 'unknown';
+        showToast(`No models found @ ${base}`, 'error');
+        
+        // Console warning with debug URL
+        const debugUrl = `${window.location.origin}/v1/models/debug`;
+        console.warn(`Model fetch failed. Debug endpoint: ${debugUrl}`);
+        console.warn('Click the "Debug" link in the model dropdown to investigate.');
+        
+      } else {
+        // Hide manual model container when we have models
+        if (manualModelContainer) {
+          manualModelContainer.style.display = 'none';
+        }
+        
+        // Add models to dropdown
+        models.forEach(model => {
+          const option = document.createElement('option');
+          option.value = model.name;
+          option.textContent = model.display;
+          modelSelect.appendChild(option);
+        });
+        
+        // Try to restore previous selection first
+        if (currentSelection && models.some(m => m.name === currentSelection)) {
+          modelSelect.value = currentSelection;
+        } else {
+          // Try to restore saved model for this provider
+          const savedModel = getSavedModelForProvider(currentProvider);
+          if (savedModel && models.some(m => m.name === savedModel)) {
+            modelSelect.value = savedModel;
+          } else if (models.length > 0) {
+            // Select first model if saved model not found
+            modelSelect.value = models[0].name;
+          }
+        }
+      }
+      
+    } catch (error) {
+      console.error('Failed to populate model dropdown:', error);
+      
+      // Show "(no models)" option on error and preserve selection
+      modelSelect.innerHTML = '';
+      const errorOption = document.createElement('option');
+      errorOption.value = currentSelection || '';
+      errorOption.textContent = currentSelection || '(no models)';
+      errorOption.style.fontStyle = 'italic';
+      errorOption.style.opacity = '0.7';
+      modelSelect.appendChild(errorOption);
+      
+      // Show manual model container on error
+      if (manualModelContainer) {
+        manualModelContainer.style.display = 'flex';
+      }
+      
+      // Show toast with base URL and debug suggestion
+      const base = healthStatus.base || 'unknown';
+      showToast(`No models found @ ${base}`, 'error');
+      
+      // Console warning with debug URL
+      const debugUrl = `${window.location.origin}/v1/models/debug`;
+      console.warn(`Model fetch failed. Debug endpoint: ${debugUrl}`);
+      console.warn('Click the "Debug" link in the model dropdown to investigate.');
+      
+    } finally {
+      modelSelect.disabled = false;
+    }
+  }
+  
+  // localStorage functions for per-provider model persistence
+  function getSavedModelForProvider(provider) {
+    try {
+      const saved = localStorage.getItem(`joeyai-model-${provider}`);
+      return saved;
+    } catch (error) {
+      console.error('Failed to get saved model:', error);
+      return null;
+    }
+  }
+  
+  function saveModelForProvider(provider, model) {
+    try {
+      localStorage.setItem(`joeyai-model-${provider}`, model);
+    } catch (error) {
+      console.error('Failed to save model:', error);
+    }
+  }
+  
+  // Manual model functions
+  function getManualModelForProvider(provider) {
+    try {
+      const saved = localStorage.getItem(`joeyai-manual-model-${provider}`);
+      return saved;
+    } catch (error) {
+      console.error('Failed to get manual model:', error);
+      return null;
+    }
+  }
+  
+  function saveManualModelForProvider(provider, model) {
+    try {
+      localStorage.setItem(`joeyai-manual-model-${provider}`, model);
+    } catch (error) {
+      console.error('Failed to save manual model:', error);
+    }
   }
   
   // Load model settings from localStorage
@@ -468,7 +887,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (saved) {
         const settings = JSON.parse(saved);
         if (providerSelect) providerSelect.value = settings.provider || 'ollama';
-        if (modelInput) modelInput.value = settings.model || 'qwen2.5-coder:7b';
         if (temperatureSlider) {
           temperatureSlider.value = settings.temperature || 0.7;
           if (temperatureValue) temperatureValue.textContent = settings.temperature || 0.7;
@@ -480,21 +898,291 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
   function saveModelSettings() {
+    const provider = providerSelect?.value || 'ollama';
+    const model = modelSelect?.value;
+    const temperature = parseFloat(temperatureSlider?.value || 0.7);
+    
+    // Save general settings
     const settings = {
-      provider: providerSelect?.value || 'ollama',
-      model: modelInput?.value || 'qwen2.5-coder:7b',
-      temperature: parseFloat(temperatureSlider?.value || 0.7)
+      provider,
+      temperature
     };
     localStorage.setItem('joeyai-model-settings', JSON.stringify(settings));
+    
+    // Save model per provider
+    if (model) {
+      saveModelForProvider(provider, model);
+    }
   }
   
-  // Save settings on change
-  if (providerSelect) providerSelect.addEventListener('change', saveModelSettings);
-  if (modelInput) modelInput.addEventListener('input', saveModelSettings);
-  if (temperatureSlider) temperatureSlider.addEventListener('input', saveModelSettings);
+  // Provider change handler
+  if (providerSelect) {
+    providerSelect.addEventListener('change', async () => {
+      saveModelSettings();
+      await populateModelDropdown();
+    });
+  }
+  
+  // Model change handler
+  if (modelSelect) {
+    modelSelect.addEventListener('change', () => {
+      saveModelSettings();
+    });
+  }
+  
+  // Temperature change handler
+  if (temperatureSlider) {
+    temperatureSlider.addEventListener('input', saveModelSettings);
+  }
+  
+  // Refresh models button handler
+  if (refreshModelsBtn) {
+    refreshModelsBtn.addEventListener('click', async () => {
+      console.log('Refresh models button clicked');
+      
+      // Show loading state
+      refreshModelsBtn.disabled = true;
+      refreshModelsBtn.classList.add('loading');
+      
+      try {
+        await populateModelDropdown();
+        showToast('Models refreshed', 'success');
+      } catch (error) {
+        console.error('Failed to refresh models:', error);
+        showToast('Failed to refresh models', 'error');
+      } finally {
+        refreshModelsBtn.disabled = false;
+        refreshModelsBtn.classList.remove('loading');
+      }
+    });
+  }
+  
+  // Sidebar conversation management functions
+  async function refreshSidebar() {
+    if (!conversationList) return;
+    
+    try {
+      const response = await fetch('/conversations');
+      const conversations = await response.json();
+      
+      conversationList.innerHTML = '';
+      
+      if (conversations.length === 0) {
+        conversationList.innerHTML = '<div class="muted">No conversations yet</div>';
+        return;
+      }
+      
+      conversations.forEach(conv => {
+        const item = document.createElement('div');
+        item.className = 'conversation-item';
+        item.dataset.conversationId = conv.id;
+        
+        if (conv.id === currentConversationId) {
+          item.classList.add('active');
+        }
+        
+        const title = conv.title || 'New Conversation';
+        const updatedAt = new Date(conv.updated_at).toLocaleDateString();
+        
+        item.innerHTML = `
+          <div class="conversation-title">${title}</div>
+          <div class="conversation-updated">${updatedAt}</div>
+        `;
+        
+        item.addEventListener('click', () => loadConversation(conv.id));
+        conversationList.appendChild(item);
+      });
+      
+    } catch (error) {
+      console.error('Failed to refresh sidebar:', error);
+      conversationList.innerHTML = '<div class="muted">Failed to load conversations</div>';
+    }
+  }
+  
+  async function loadConversation(conversationId) {
+    try {
+      // Update active state in sidebar
+      const items = conversationList.querySelectorAll('.conversation-item');
+      items.forEach(item => {
+        item.classList.toggle('active', item.dataset.conversationId == conversationId);
+      });
+      
+      // Load messages for this conversation
+      const response = await fetch(`/conversations/${conversationId}/messages`);
+      const messages = await response.json();
+      
+      // Clear current messages
+      msgs.innerHTML = '';
+      
+      // Load messages into chat
+      messages.forEach(msg => {
+        if (msg.role === 'user') {
+          const bubble = document.createElement('div');
+          bubble.className = 'msg user';
+          bubble.textContent = msg.content;
+          msgs.appendChild(bubble);
+        } else if (msg.role === 'assistant') {
+          const bubble = document.createElement('div');
+          bubble.className = 'msg assistant';
+          bubble.innerHTML = renderAssistantMessage(msg.content);
+          msgs.appendChild(bubble);
+        }
+      });
+      
+      // Update current conversation ID
+      currentConversationId = conversationId;
+      
+      // Show messages if we have any
+      if (messages.length > 0) {
+        document.body.classList.add('has-started');
+      }
+      
+      // Scroll to bottom
+      autoScroll();
+      
+    } catch (error) {
+      console.error('Failed to load conversation:', error);
+      showToast('Failed to load conversation', 'error');
+    }
+  }
+  
+  // New conversation button handler
+  if (newConversationBtn) {
+    newConversationBtn.addEventListener('click', async () => {
+      try {
+        const newId = await createNewConversation();
+        if (newId) {
+          // Clear current chat
+          msgs.innerHTML = '';
+          currentConversationId = newId;
+          document.body.classList.remove('has-started');
+          
+          // Refresh sidebar to show new conversation
+          await refreshSidebar();
+          
+          console.log('New conversation created:', newId);
+        }
+      } catch (error) {
+        console.error('Failed to create new conversation:', error);
+        showToast('Failed to create new conversation', 'error');
+      }
+    });
+  }
+  
+  // Search functionality (basic filter)
+  if (conversationSearch) {
+    conversationSearch.addEventListener('input', (e) => {
+      const searchTerm = e.target.value.toLowerCase();
+      const items = conversationList.querySelectorAll('.conversation-item');
+      
+      items.forEach(item => {
+        const title = item.querySelector('.conversation-title').textContent.toLowerCase();
+        const matches = title.includes(searchTerm);
+        item.style.display = matches ? 'flex' : 'none';
+      });
+    });
+  }
+  
+  // Initialize sidebar on load and after sending messages
+  refreshSidebar();
   
   // Initialize
   loadModelSettings();
   
-  console.log('Chat send/stream event wiring initialized');
+  // Manual model input handler
+  if (manualModelInput) {
+    manualModelInput.addEventListener('input', (e) => {
+      const provider = providerSelect?.value || 'ollama';
+      const model = e.target.value.trim();
+      if (model) {
+        saveManualModelForProvider(provider, model);
+      }
+    });
+    
+    // Load saved manual model on provider change
+    if (providerSelect) {
+      const originalProviderHandler = providerSelect.onchange;
+      providerSelect.addEventListener('change', () => {
+        const provider = providerSelect.value || 'ollama';
+        const savedManualModel = getManualModelForProvider(provider);
+        if (savedManualModel && manualModelInput) {
+          manualModelInput.value = savedManualModel;
+        } else if (manualModelInput) {
+          manualModelInput.value = '';
+        }
+      });
+    }
+  }
+  
+  // Test model button handler
+  if (testModelBtn) {
+    testModelBtn.addEventListener('click', async () => {
+      console.log('Test model button clicked');
+      
+      const provider = (providerSelect?.value || 'ollama').toLowerCase();
+      const manualModel = manualModelInput?.value?.trim();
+      
+      if (!manualModel) {
+        showToast('Please enter a model name to test', 'error');
+        return;
+      }
+      
+      // Save the manual model
+      saveManualModelForProvider(provider, manualModel);
+      
+      // Disable button during test
+      testModelBtn.disabled = true;
+      testModelBtn.textContent = 'Testing...';
+      
+      try {
+        const payload = {
+          model: manualModel,
+          provider: provider,
+          stream: false,
+          messages: [{ role: 'user', content: 'ping' }]
+        };
+        
+        console.log('Testing model with payload:', payload);
+        
+        const response = await fetch('/v1/chat/completions', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          showToast('Model OK', 'success');
+          console.log('Model test successful');
+        } else {
+          const errorText = await response.text();
+          const truncatedError = errorText.length > 120 ? errorText.substring(0, 120) + '...' : errorText;
+          showToast(`HTTP ${response.status}: ${truncatedError}`, 'error');
+          console.error('Model test failed:', response.status, errorText);
+        }
+        
+      } catch (error) {
+        console.error('Model test error:', error);
+        showToast(`Test failed: ${error.message}`, 'error');
+      } finally {
+        testModelBtn.disabled = false;
+        testModelBtn.textContent = 'Test';
+      }
+    });
+  }
+  
+  // Initialize model dropdown
+  populateModelDropdown();
+  
+  // Load initial manual model if needed
+  if (manualModelInput && providerSelect) {
+    const initialProvider = providerSelect.value || 'ollama';
+    const savedManualModel = getManualModelForProvider(initialProvider);
+    if (savedManualModel) {
+      manualModelInput.value = savedManualModel;
+    }
+  }
+  
+  console.log('Chat send/stream event wiring initialized with enhanced DOM guards and rendering');
 });
