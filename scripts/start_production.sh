@@ -6,5 +6,5 @@ if [ -f .env ]; then
   export $(cat .env | grep -v '^#' | xargs)
 fi
 
-exec env FLASK_APP="backend.app" \
-  python -m flask run --host 0.0.0.0 --port ${PORT:-5000} --no-reload
+# Start with gunicorn for production
+exec gunicorn -w 4 -b 0.0.0.0:${PORT:-5000} backend.app:app

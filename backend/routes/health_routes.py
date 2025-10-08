@@ -25,6 +25,15 @@ def health_check():
         "service": "Joey_AI"
     })
 
+@health_bp.route('/healthz', methods=['GET'])
+def healthz_check():
+    """Health check endpoint (Kubernetes/cloud-native alias)."""
+    return jsonify({
+        "status": "healthy",
+        "timestamp": int(time.time()),
+        "service": "Joey_AI"
+    })
+
 @health_bp.route('/v1/health', methods=['GET'])
 def v1_health_check():
     """Gateway health check with Ollama connectivity test."""
