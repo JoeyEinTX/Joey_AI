@@ -2,7 +2,7 @@ import requests
 import time
 import logging
 from typing import Optional, Dict, Any
-from ..config import OllamaConfig
+from backend.config import OllamaConfig
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -37,19 +37,34 @@ class OllamaService:
         payload = {
             "model": OllamaConfig.MODEL,
             "prompt": prompt,
-            "stream": False
+            "stream": False,
+            "options": {
+                "num_gpu": OllamaConfig.NUM_GPU
+            }
         }
-        # Allow override of default parameters
+        # Allow override of default parameters, merging options if provided
+        if 'options' in kwargs:
+            payload['options'].update(kwargs.pop('options'))
         payload.update(kwargs)
         return payload
     
     def _make_request(self, payload: Dict[str, Any]) -> requests.Response:
         """Make a single request to Ollama API using the session."""
-        return self.session.post(
-            OllamaConfig.get_api_url(),
-            json=payload,
-            timeout=OllamaConfig.TIMEOUT
-        )
+        api_url = OllamaConfig.get_api_url()
+        logger.info(f"Making request to: {api_url}")
+        logger.debug(f"Payload: {payload}")
+        
+        try:
+            response = self.session.post(
+                api_url,
+                json=payload,
+                timeout=OllamaConfig.TIMEOUT
+            )
+            logger.info(f"Response status code: {response.status_code}")
+            return response
+        except Exception as e:
+            logger.error(f"Request failed to {api_url} - Error: {str(e)}")
+            raise
     
     def _extract_response(self, response_data: Dict[str, Any]) -> str:
         """Extract the generated text from Ollama response."""

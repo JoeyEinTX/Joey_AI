@@ -6,9 +6,10 @@ from typing import Optional
 class OllamaConfig:
     """Configuration for Ollama API integration."""
     
-    BASE_URL: str = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
-    MODEL: str = os.getenv('OLLAMA_MODEL', 'llama2')
-    TIMEOUT: int = int(os.getenv('OLLAMA_TIMEOUT', '30'))
+    BASE_URL: str = os.getenv('OLLAMA_BASE_URL', os.getenv('OLLAMA_BASE', 'http://127.0.0.1:11434'))
+    MODEL: str = os.getenv('OLLAMA_MODEL', 'qwen2.5:7b-instruct')
+    NUM_GPU: int = int(os.getenv('OLLAMA_NUM_GPU', '0'))
+    TIMEOUT: int = int(os.getenv('OLLAMA_TIMEOUT', '60'))
     MAX_RETRIES: int = int(os.getenv('OLLAMA_MAX_RETRIES', '3'))
     RETRY_DELAY: float = float(os.getenv('OLLAMA_RETRY_DELAY', '1.0'))
     
@@ -27,6 +28,15 @@ class OllamaConfig:
         if cls.TIMEOUT <= 0:
             return "OLLAMA_TIMEOUT must be positive"
         return None
+    
+    @classmethod
+    def print_config(cls) -> None:
+        """Print configuration for debugging."""
+        print(f"[CONFIG] Ollama BASE_URL: {cls.BASE_URL}")
+        print(f"[CONFIG] Ollama MODEL: {cls.MODEL}")
+        print(f"[CONFIG] Ollama NUM_GPU: {cls.NUM_GPU} (CPU-only: {cls.NUM_GPU == 0})")
+        print(f"[CONFIG] Ollama TIMEOUT: {cls.TIMEOUT}s")
+        print(f"[CONFIG] API URL: {cls.get_api_url()}")
 
 
 class FlaskConfig:

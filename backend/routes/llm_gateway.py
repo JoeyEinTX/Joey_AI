@@ -18,11 +18,16 @@ last_request_body = None
 last_resolved_info = None
 
 def resolve_ollama_base():
-    """Resolve OLLAMA_BASE with proper precedence: ENV > config > default"""
-    if "OLLAMA_BASE" in os.environ:
-        return os.environ["OLLAMA_BASE"], "env"
+    """Resolve OLLAMA_BASE_URL with proper precedence: ENV > config > default"""
+    # Try OLLAMA_BASE_URL first (standard naming), then fall back to OLLAMA_BASE
+    if "OLLAMA_BASE_URL" in os.environ:
+        return os.environ["OLLAMA_BASE_URL"], "env:OLLAMA_BASE_URL"
+    elif "OLLAMA_BASE" in os.environ:
+        return os.environ["OLLAMA_BASE"], "env:OLLAMA_BASE"
+    elif current_app.config.get("OLLAMA_BASE_URL"):
+        return current_app.config["OLLAMA_BASE_URL"], "config:OLLAMA_BASE_URL"
     elif current_app.config.get("OLLAMA_BASE"):
-        return current_app.config["OLLAMA_BASE"], "config"
+        return current_app.config["OLLAMA_BASE"], "config:OLLAMA_BASE"
     else:
         return "http://127.0.0.1:11434", "default"
 
@@ -97,20 +102,28 @@ def handle_ollama_request(model: str, messages: list, temperature: float, stream
     # Log base/source after resolve_ollama_base()
     logger.info(f"base={base} source={source}")
     
+    # Get num_gpu from environment or use 0 for CPU-only mode
+    num_gpu = int(os.getenv('OLLAMA_NUM_GPU', '0'))
+    
     ollama_payload = {
         'model': model,
         'messages': messages,
         'stream': stream,
         'options': {
-            'temperature': temperature
+            'temperature': temperature,
+            'num_gpu': num_gpu
         }
     }
     
+    # Log the complete payload being sent to Ollama
+    logger.info(f"[OLLAMA PAYLOAD] {json.dumps(ollama_payload, indent=2)}")
+    
     try:
+        # Increased timeout to 120s for CPU mode inference
         response = requests.post(
             f'{base}/api/chat',
             json=ollama_payload,
-            timeout=60,
+            timeout=120,
             stream=stream
         )
         response.raise_for_status()

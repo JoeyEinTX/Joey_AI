@@ -41,6 +41,12 @@ document.addEventListener('DOMContentLoaded', () => {
   let healthStatus = { ok: false, base: null, state: 'offline' }; // online | degraded | offline
   let lastSendFailed = false;
   
+  // Expose currentConversationId to global scope for keyboard shortcuts
+  Object.defineProperty(window, 'currentConversationId', {
+    get: () => currentConversationId,
+    set: (value) => { currentConversationId = value; }
+  });
+  
   // Initialize markdown-it
   const md = window.markdownit({
     html: true,
@@ -172,9 +178,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Bind events after DOMContentLoaded
+  // Bind events after DOMContentLoaded with deduplication guard
+  let sendInProgress = false;
+  
   if (btn) {
-    btn.addEventListener('click', onSend);
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (!sendInProgress) {
+        sendInProgress = true;
+        onSend().finally(() => { sendInProgress = false; });
+      }
+    });
     console.log('Send button click listener bound');
   }
   
@@ -182,7 +196,10 @@ document.addEventListener('DOMContentLoaded', () => {
     ta.addEventListener('keydown', (e) => {
       if (e.ctrlKey && e.key === 'Enter') {
         e.preventDefault();
-        onSend();
+        if (!sendInProgress) {
+          sendInProgress = true;
+          onSend().finally(() => { sendInProgress = false; });
+        }
       }
     });
     console.log('Textarea Ctrl+Enter listener bound');
@@ -191,8 +208,12 @@ document.addEventListener('DOMContentLoaded', () => {
   if (composer) {
     composer.addEventListener('submit', (e) => {
       e.preventDefault();
-      onSend();
+      if (!sendInProgress) {
+        sendInProgress = true;
+        onSend().finally(() => { sendInProgress = false; });
+      }
     });
+    console.log('Form submit listener bound');
   }
 
   // onSend implementation with enhanced logging and retry logic
@@ -1080,6 +1101,119 @@ document.addEventListener('DOMContentLoaded', () => {
         const matches = title.includes(searchTerm);
         item.style.display = matches ? 'flex' : 'none';
       });
+    });
+  }
+  
+  // Expose functions to global scope for keyboard shortcuts and external use
+  window.showToast = showToast;
+  window.refreshSidebar = refreshSidebar;
+  
+  // Gear menu handler
+  const gearBtn = document.getElementById('gear-btn');
+  const gearMenu = document.getElementById('gear-menu');
+  
+  if (gearBtn && gearMenu) {
+    gearBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      gearMenu.classList.toggle('hidden');
+    });
+    
+    // Close gear menu when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!gearMenu.classList.contains('hidden') && !gearMenu.contains(e.target) && e.target !== gearBtn) {
+        gearMenu.classList.add('hidden');
+      }
+    });
+    
+    // Handle gear menu actions
+    gearMenu.querySelectorAll('.gear-item[data-action]').forEach(item => {
+      item.addEventListener('click', () => {
+        const action = item.dataset.action;
+        gearMenu.classList.add('hidden');
+        
+        if (action === 'memory') {
+          // Open memory modal (existing functionality)
+          const memoryModal = document.getElementById('memoryModal');
+          if (memoryModal) {
+            memoryModal.classList.remove('hidden');
+          }
+        } else if (action === 'settings') {
+          // Show keyboard shortcuts modal
+          if (window.showShortcutsModal) {
+            window.showShortcutsModal();
+          }
+        } else if (action === 'about') {
+          // Show about dialog
+          showAboutDialog();
+        }
+      });
+    });
+  }
+  
+  /**
+   * Show about dialog
+   */
+  function showAboutDialog() {
+    const existingModal = document.getElementById('about-modal');
+    if (existingModal) {
+      existingModal.remove();
+    }
+    
+    const modal = document.createElement('div');
+    modal.id = 'about-modal';
+    modal.className = 'modal';
+    modal.setAttribute('aria-hidden', 'false');
+    
+    const modalContent = `
+      <div class="modal-dialog" style="max-width: 500px;">
+        <div class="modal-header">
+          <h3>ℹ️ About Joey_AI</h3>
+          <button id="about-modal-close" class="icon-btn" aria-label="Close">×</button>
+        </div>
+        <div class="modal-body">
+          <div style="padding: 16px; text-align: center;">
+            <img src="${document.querySelector('.brand-logo')?.src || ''}" 
+                 alt="Joey_AI" 
+                 style="max-width: 200px; margin-bottom: 16px; filter: drop-shadow(0 0 8px rgba(77,224,255,0.4));">
+            <h4 style="margin: 0 0 8px 0; color: var(--glow, #4de0ff);">Joey_AI Dashboard</h4>
+            <p style="color: var(--muted, #8aa6c1); font-size: 14px; margin: 8px 0;">
+              A powerful web interface for local LLM interaction
+            </p>
+            <div style="margin: 20px 0; padding: 16px; background: var(--surface-2, #0b0f16); border-radius: 8px; text-align: left;">
+              <div style="font-size: 13px; color: var(--text, #e6e9ef); line-height: 1.6;">
+                <strong>Features:</strong><br>
+                • Multi-provider support (Ollama, Anthropic)<br>
+                • Conversation management & export<br>
+                • Memory system for notes & todos<br>
+                • OpenAI-compatible API<br>
+                • Keyboard shortcuts (Ctrl+/ for help)<br>
+                • Streaming & non-streaming modes
+              </div>
+            </div>
+            <div style="font-size: 12px; color: var(--muted, #8aa6c1); margin-top: 16px;">
+              Press <kbd style="background: var(--surface-1, #141821); padding: 2px 6px; border-radius: 3px; font-family: monospace;">Ctrl+/</kbd> to view keyboard shortcuts
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    modal.innerHTML = modalContent;
+    document.body.appendChild(modal);
+    
+    const closeBtn = document.getElementById('about-modal-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        modal.classList.add('hidden');
+        setTimeout(() => modal.remove(), 300);
+      });
+    }
+    
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        modal.classList.add('hidden');
+        setTimeout(() => modal.remove(), 300);
+      }
     });
   }
   

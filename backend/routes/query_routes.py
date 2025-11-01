@@ -1,9 +1,9 @@
 from flask import Blueprint, request, jsonify
-from ..services.ollama_service import send_prompt
+from backend.services.ollama_service import send_prompt
 import time
 import logging
-from ..config import JoeyAIConfig
-from ..services import memory_service as mem
+from backend.config import JoeyAIConfig
+from backend.services import memory_service as mem
 
 logger = logging.getLogger(__name__)
 query_bp = Blueprint('query_bp', __name__)
@@ -77,7 +77,7 @@ def advanced_query():
 @query_bp.route('/models', methods=['GET'])
 def get_available_models():
     """Get list of available models from Ollama."""
-    from ..services.ollama_service import get_ollama_service
+    from backend.services.ollama_service import get_ollama_service
     
     try:
         service = get_ollama_service()

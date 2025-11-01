@@ -1,0 +1,29 @@
+# Include documentation
+include README.md
+include LICENSE
+include QUICKSTART.md
+include IMPROVEMENTS.md
+
+# Include configuration examples
+include .env.example
+recursive-include config-examples *
+
+# Include frontend files
+recursive-include frontend/static *
+recursive-include frontend/templates *
+
+# Include backend data files
+include backend/presets.json
+include backend/*.toml
+
+# Include scripts
+recursive-include scripts *.sh
+include scripts/README.md
+
+# Exclude unnecessary files
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude __pycache__
+global-exclude *.db
+global-exclude *.log
+global-exclude .DS_Store
