@@ -97,6 +97,54 @@
     </main>
   </div>
 
+  <!-- System Status Bar - Enhanced -->
+  <div id="status-bar" class="status-bar">
+    <div class="status-item">
+      <span class="status-label">CPU:</span>
+      <span id="status-cpu" class="status-value">--%</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">MEM:</span>
+      <span id="status-memory" class="status-value">--%</span>
+    </div>
+    <div class="status-item" id="status-gpu-container" style="display: none;">
+      <span class="status-label">GPU:</span>
+      <span id="status-gpu" class="status-value">--%</span>
+    </div>
+    <div class="status-item" id="status-cpu-temp-container" style="display: none;">
+      <span class="status-label">CPU TEMP:</span>
+      <span id="status-cpu-temp" class="status-value">--°C</span>
+    </div>
+    <div class="status-item" id="status-gpu-temp-container" style="display: none;">
+      <span class="status-label">GPU TEMP:</span>
+      <span id="status-gpu-temp" class="status-value">--°C</span>
+    </div>
+    <div class="status-item" id="status-power-container" style="display: none;">
+      <span class="status-label">POWER:</span>
+      <span id="status-power" class="status-value">--W</span>
+    </div>
+    <div class="status-item" id="status-tokens-container" style="display: none;">
+      <span class="status-label">TOKENS/S:</span>
+      <span id="status-tokens" class="status-value">-- t/s</span>
+    </div>
+    <div class="status-item" id="status-context-container" style="display: none;">
+      <span class="status-label">CTX:</span>
+      <span id="status-context" class="status-value">--</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">MODEL:</span>
+      <span id="status-model" class="status-value">--</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">LAT:</span>
+      <span id="status-latency" class="status-value">--s</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">STATUS:</span>
+      <span id="status-connection" class="status-indicator offline">●</span>
+    </div>
+  </div>
+
   <!-- Toast Container -->
   <div id="toast-container" class="toast-container"></div>
 

@@ -28,6 +28,7 @@ from backend.routes.conversation_routes import conversations_bp
 from backend.routes.chat_routes import chat_bp
 from backend.routes.llm_gateway import llm_bp
 from backend.routes.models_routes import models_bp
+from backend.routes.system_routes import system_bp
 
 from backend.services.conversation_service import init_db as init_conversation_db
 from backend.config import FlaskConfig, OllamaConfig
@@ -92,6 +93,7 @@ def main():
     app.register_blueprint(chat_bp)
     app.register_blueprint(llm_bp)
     app.register_blueprint(models_bp)
+    app.register_blueprint(system_bp)
 
     @app.route('/')
     def home():

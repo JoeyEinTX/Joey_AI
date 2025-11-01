@@ -1318,5 +1318,173 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
   
+  // System status bar polling with enhanced metrics
+  let statusBarUpdateInterval = null;
+  
+  // Helper function to get color class based on percentage
+  function getLoadClass(value, type = 'general') {
+    if (type === 'temp') {
+      // Temperature thresholds (in Celsius)
+      if (value < 50) return 'low';
+      if (value < 70) return 'medium';
+      return 'high';
+    } else {
+      // General percentage thresholds
+      if (value < 50) return 'low';
+      if (value < 80) return 'medium';
+      return 'high';
+    }
+  }
+  
+  async function updateSystemStatus() {
+    try {
+      const response = await fetch('/api/system_stats');
+      const stats = await response.json();
+      
+      // Update CPU with color coding
+      const cpuEl = document.getElementById('status-cpu');
+      if (cpuEl) {
+        cpuEl.textContent = `${stats.cpu}%`;
+        cpuEl.className = `status-value ${getLoadClass(stats.cpu)}`;
+        cpuEl.parentElement.title = `CPU Usage: ${stats.cpu}%`;
+      }
+      
+      // Update Memory with color coding
+      const memEl = document.getElementById('status-memory');
+      if (memEl) {
+        memEl.textContent = `${stats.memory}%`;
+        memEl.className = `status-value ${getLoadClass(stats.memory)}`;
+        memEl.parentElement.title = `Memory Usage: ${stats.memory}%`;
+      }
+      
+      // Update GPU (show/hide based on availability)
+      const gpuContainer = document.getElementById('status-gpu-container');
+      const gpuEl = document.getElementById('status-gpu');
+      if (stats.gpu !== null && stats.gpu !== undefined) {
+        if (gpuContainer) gpuContainer.style.display = 'flex';
+        if (gpuEl) {
+          gpuEl.textContent = `${stats.gpu}%`;
+          gpuEl.className = `status-value ${getLoadClass(stats.gpu)}`;
+          gpuEl.parentElement.title = `GPU Usage: ${stats.gpu}%`;
+        }
+      } else {
+        if (gpuContainer) gpuContainer.style.display = 'none';
+      }
+      
+      // Update CPU Temperature
+      const cpuTempContainer = document.getElementById('status-cpu-temp-container');
+      const cpuTempEl = document.getElementById('status-cpu-temp');
+      if (stats.cpu_temp !== null && stats.cpu_temp !== undefined) {
+        if (cpuTempContainer) cpuTempContainer.style.display = 'flex';
+        if (cpuTempEl) {
+          cpuTempEl.textContent = `${stats.cpu_temp}°C`;
+          cpuTempEl.className = `status-value ${getLoadClass(stats.cpu_temp, 'temp')}`;
+          cpuTempEl.parentElement.title = `CPU Temperature: ${stats.cpu_temp}°C`;
+        }
+      } else {
+        if (cpuTempContainer) cpuTempContainer.style.display = 'none';
+      }
+      
+      // Update GPU Temperature
+      const gpuTempContainer = document.getElementById('status-gpu-temp-container');
+      const gpuTempEl = document.getElementById('status-gpu-temp');
+      if (stats.gpu_temp !== null && stats.gpu_temp !== undefined) {
+        if (gpuTempContainer) gpuTempContainer.style.display = 'flex';
+        if (gpuTempEl) {
+          gpuTempEl.textContent = `${stats.gpu_temp}°C`;
+          gpuTempEl.className = `status-value ${getLoadClass(stats.gpu_temp, 'temp')}`;
+          gpuTempEl.parentElement.title = `GPU Temperature: ${stats.gpu_temp}°C`;
+        }
+      } else {
+        if (gpuTempContainer) gpuTempContainer.style.display = 'none';
+      }
+      
+      // Update Power Draw
+      const powerContainer = document.getElementById('status-power-container');
+      const powerEl = document.getElementById('status-power');
+      if (stats.power_draw !== null && stats.power_draw !== undefined) {
+        if (powerContainer) powerContainer.style.display = 'flex';
+        if (powerEl) {
+          powerEl.textContent = `${stats.power_draw}W`;
+          powerEl.className = 'status-value';
+          powerEl.parentElement.title = `Power Draw: ${stats.power_draw}W`;
+        }
+      } else {
+        if (powerContainer) powerContainer.style.display = 'none';
+      }
+      
+      // Update Tokens per Second
+      const tokensContainer = document.getElementById('status-tokens-container');
+      const tokensEl = document.getElementById('status-tokens');
+      if (stats.tokens_per_sec !== null && stats.tokens_per_sec !== undefined) {
+        if (tokensContainer) tokensContainer.style.display = 'flex';
+        if (tokensEl) {
+          tokensEl.textContent = `${stats.tokens_per_sec} t/s`;
+          tokensEl.className = 'status-value';
+          tokensEl.parentElement.title = `Tokens per Second: ${stats.tokens_per_sec}`;
+        }
+      } else {
+        if (tokensContainer) tokensContainer.style.display = 'none';
+      }
+      
+      // Update Context Used
+      const contextContainer = document.getElementById('status-context-container');
+      const contextEl = document.getElementById('status-context');
+      if (stats.context_used && stats.context_used !== '0/4096') {
+        if (contextContainer) contextContainer.style.display = 'flex';
+        if (contextEl) {
+          contextEl.textContent = stats.context_used;
+          contextEl.className = 'status-value';
+          contextEl.parentElement.title = `Context: ${stats.context_used}`;
+        }
+      } else {
+        if (contextContainer) contextContainer.style.display = 'none';
+      }
+      
+      // Update Model
+      const modelEl = document.getElementById('status-model');
+      if (modelEl) {
+        const shortModel = stats.model.length > 25 ? stats.model.substring(0, 22) + '...' : stats.model;
+        modelEl.textContent = shortModel;
+        modelEl.className = 'status-value';
+        modelEl.parentElement.title = `Model: ${stats.model}`;
+      }
+      
+      // Update Latency
+      const latencyEl = document.getElementById('status-latency');
+      if (latencyEl) {
+        if (stats.latency > 0) {
+          latencyEl.textContent = `${stats.latency}s`;
+          latencyEl.className = 'status-value';
+        } else {
+          latencyEl.textContent = '--s';
+          latencyEl.className = 'status-value';
+        }
+        latencyEl.parentElement.title = `Response Latency: ${stats.latency}s`;
+      }
+      
+      // Update Connection Status
+      const connEl = document.getElementById('status-connection');
+      if (connEl) {
+        connEl.className = `status-indicator ${stats.status}`;
+        connEl.title = `Connection Status: ${stats.status}`;
+      }
+      
+    } catch (error) {
+      console.error('Failed to update system status:', error);
+      
+      // Show offline state on error
+      const connEl = document.getElementById('status-connection');
+      if (connEl) {
+        connEl.className = 'status-indicator offline';
+        connEl.title = 'Failed to fetch status';
+      }
+    }
+  }
+  
+  // Start polling system stats every second
+  updateSystemStatus(); // Initial update
+  statusBarUpdateInterval = setInterval(updateSystemStatus, 1000);
+  
   console.log('Chat send/stream event wiring initialized with enhanced DOM guards and rendering');
 });
