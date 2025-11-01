@@ -16,8 +16,6 @@ print(f"[PATH_SETUP] sys.path[0]: {sys.path[0]}")
 print(f"[PATH_SETUP] Project root: {project_root}")
 
 
-def main():
-    """Main entry point for JoeyAI application."""
 import os
 from flask import Flask, render_template, current_app, jsonify, url_for
 from dotenv import load_dotenv, find_dotenv
@@ -36,6 +34,9 @@ from backend.config import FlaskConfig, OllamaConfig
 
 import logging
 
+
+def main():
+    """Main entry point for JoeyAI application."""
     # Load environment variables from .env file
     load_dotenv()
 
