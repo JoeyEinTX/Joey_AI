@@ -32,55 +32,85 @@
       <div id="conversation-list" class="chat-list"></div>
     </aside>
     <header id="topbar" class="header">
-      <div class="brand">
-        <img class="brand-logo" src="{{ url_for('static', filename='img/joey_ai_main_logo.png') }}" alt="JoeyAI" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';" />
-        <span class="brand-text">JoeyAI</span>
-        <span class="health-dot" id="health-dot"></span>
-      </div>
-      <div class="model-controls">
-        <div class="control-group">
-          <label for="provider-select">Provider:</label>
-          <select id="provider-select" class="control-input">
-            <option value="ollama">Ollama</option>
-            <option value="anthropic">Anthropic</option>
-          </select>
+      <!-- Enhanced Header with Compact Info -->
+      <div class="header-main">
+        <div class="brand-compact">
+          <img class="brand-avatar" src="{{ url_for('static', filename='img/joey_ai_main_logo.png') }}" alt="JoeyAI" />
+          <span class="brand-info">
+            <span class="brand-name">JoeyAI</span>
+            <span class="brand-details">
+              <span id="header-model">Model: qwen2.5:7b-instruct</span>
+              <span class="separator">•</span>
+              <span id="header-temp">Temp: 0.7</span>
+              <span class="separator">•</span>
+              <span id="header-session">Session: Active</span>
+            </span>
+          </span>
         </div>
-        <div class="control-group">
-          <label for="model-select">Model:</label>
-          <div class="model-selector">
-            <select id="model-select" class="control-input">
-              <option value="">Loading...</option>
-            </select>
-            <button id="refresh-models-btn" class="refresh-btn" title="Refresh models">↻</button>
+        
+        <div class="header-status">
+          <span class="status-indicator" id="status-indicator" title="Connection Status">
+            <span class="status-dot"></span>
+            <span class="status-text">Connected</span>
+          </span>
+        </div>
+        
+        <div class="header-right">
+          <button id="gear-btn" class="gear-btn" aria-haspopup="true" aria-expanded="false">⚙️</button>
+          <div id="gear-menu" class="gear-menu" role="menu" hidden>
+            <div class="menu-title">JoeyAI</div>
+            <button class="menu-item" data-action="memory">Memory</button>
+            <label class="menu-item checkbox">
+              <input id="autosave-toggle" type="checkbox" checked />
+              Auto-save Chats
+            </label>
+            <button class="menu-item" data-action="settings">Settings…</button>
+            <button class="menu-item" data-action="about">About</button>
           </div>
-          <div class="manual-model-container" id="manual-model-container" style="display: none;">
-            <input type="text" id="model-manual" class="control-input" placeholder="type model name (e.g., qwen2.5-coder:7b)" style="font-size: 10px; margin-top: 2px;">
-            <div class="manual-model-actions">
-              <button id="test-model-btn" class="test-btn" title="Test model">Test</button>
-              <a href="/v1/models/debug" target="_blank" id="models-debug-link" class="debug-link" title="Models Debug">Debug</a>
-            </div>
-          </div>
-        </div>
-        <div class="temperature-control">
-          <label for="temperature-slider">Temp:</label>
-          <input type="range" id="temperature-slider" min="0" max="1" step="0.1" value="0.7" class="control-slider">
-          <span id="temperature-value">0.7</span>
         </div>
       </div>
-      <div class="header-right">
-        <button id="gear-btn" class="gear-btn" aria-haspopup="true" aria-expanded="false">⚙️</button>
-        <div id="gear-menu" class="gear-menu" role="menu" hidden>
-          <div class="menu-title">JoeyAI</div>
-          <button class="menu-item" data-action="memory">Memory</button>
-          <label class="menu-item checkbox">
-            <input id="autosave-toggle" type="checkbox" checked />
-            Auto-save Chats
-          </label>
-          <button class="menu-item" data-action="settings">Settings…</button>
-          <button class="menu-item" data-action="about">About</button>
+      
+      <!-- Summary Bar -->
+      <div class="summary-bar" id="summary-bar">
+        <div class="summary-item">
+          <span class="summary-label">Chats:</span>
+          <span id="summary-chats" class="summary-value">0 active | 0 archived</span>
+        </div>
+        <div class="summary-separator">|</div>
+        <div class="summary-item">
+          <span class="summary-label">Last:</span>
+          <span id="summary-last-title" class="summary-value">None</span>
+        </div>
+        <div class="summary-separator">|</div>
+        <div class="summary-item">
+          <span class="summary-label">Uptime:</span>
+          <span id="summary-uptime" class="summary-value">0.0h</span>
+        </div>
+        <div class="summary-separator">|</div>
+        <div class="summary-item">
+          <span class="summary-label">Tokens:</span>
+          <span id="summary-tokens" class="summary-value">0</span>
         </div>
       </div>
     </header>
+    
+    <!-- Hidden Model Controls (accessible via settings) -->
+    <div id="model-controls-hidden" style="display: none;">
+      <select id="provider-select" class="control-input">
+        <option value="ollama">Ollama</option>
+        <option value="anthropic">Anthropic</option>
+      </select>
+      <select id="model-select" class="control-input">
+        <option value="">Loading...</option>
+      </select>
+      <button id="refresh-models-btn" class="refresh-btn">↻</button>
+      <input type="range" id="temperature-slider" min="0" max="1" step="0.1" value="0.7" class="control-slider">
+      <span id="temperature-value">0.7</span>
+      <div id="manual-model-container">
+        <input type="text" id="model-manual" class="control-input" />
+        <button id="test-model-btn" class="test-btn">Test</button>
+      </div>
+    </div>
     <main class="main">
       <div class="chat-column">
         <div id="hero" class="hero">
@@ -120,6 +150,29 @@
       <div class="perf-item"><label>MODEL:</label><span id="model-val" class="perf-value">--</span></div>
       <div class="perf-item"><label>LAT:</label><span id="lat-val" class="perf-value">--</span></div>
       <div class="perf-item"><label>STATUS:</label><span id="status-val" class="perf-value">--</span></div>
+    </div>
+
+    <!-- Analytics Section (Collapsible) -->
+    <div class="analytics-section">
+      <h3 class="perf-heading analytics-toggle" id="analytics-toggle">
+        <span class="toggle-icon">▼</span> ANALYTICS
+      </h3>
+      <div class="perf-section analytics-content" id="analytics-content">
+        <div class="perf-item"><label>AVG TOKENS/S:</label><span id="analytics-avg-tps" class="perf-value">--</span></div>
+        <div class="perf-item"><label>AVG LATENCY:</label><span id="analytics-avg-latency" class="perf-value">--</span></div>
+        <div class="perf-item"><label>SESSION TOKENS:</label><span id="analytics-session-tokens" class="perf-value">--</span></div>
+        
+        <!-- Mini Chart Canvas -->
+        <div class="analytics-chart">
+          <label class="chart-label">Tokens/S History (Last 5)</label>
+          <canvas id="tokens-chart" width="280" height="60"></canvas>
+        </div>
+        
+        <div class="analytics-chart" style="margin-top: 8px;">
+          <label class="chart-label">Latency History (Last 5)</label>
+          <canvas id="latency-chart" width="280" height="60"></canvas>
+        </div>
+      </div>
     </div>
   </div>
 

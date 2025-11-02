@@ -487,3 +487,102 @@ def update_response_metrics(response_time, model_name):
     global _last_response_time, _last_model_name
     _last_response_time = response_time
     _last_model_name = model_name
+
+
+# Dashboard tracking variables
+_app_start_time = time.time()
+_session_token_count = 0
+_latency_history = []  # Store last 5 latencies
+_tokens_sec_history = []  # Store last 5 tokens/sec readings
+
+def update_dashboard_metrics(tokens_count=0, latency_ms=0, tokens_per_sec=0):
+    """
+    Update dashboard metrics for analytics.
+    
+    Args:
+        tokens_count: Number of tokens generated in this response
+        latency_ms: Latency in milliseconds
+        tokens_per_sec: Tokens per second rate
+    """
+    global _session_token_count, _latency_history, _tokens_sec_history
+    
+    _session_token_count += tokens_count
+    
+    # Keep rolling window of last 5 readings
+    if latency_ms > 0:
+        _latency_history.append(latency_ms)
+        if len(_latency_history) > 5:
+            _latency_history.pop(0)
+    
+    if tokens_per_sec > 0:
+        _tokens_sec_history.append(tokens_per_sec)
+        if len(_tokens_sec_history) > 5:
+            _tokens_sec_history.pop(0)
+
+
+@system_bp.route('/api/dashboard/summary', methods=['GET'])
+def get_dashboard_summary():
+    """
+    Get dashboard summary statistics.
+    
+    Returns:
+        JSON with active/archived chat counts, averages, uptime, and session metrics
+    """
+    try:
+        from backend.services.conversation_service import list_conversations
+        
+        # Get conversation counts
+        all_convs = list_conversations(limit=1000, include_archived=True)
+        active_chats = len([c for c in all_convs if not c.get('archived', False)])
+        archived_chats = len([c for c in all_convs if c.get('archived', False)])
+        
+        # Get last conversation title
+        last_title = "None"
+        if all_convs:
+            # Get most recent non-archived conversation
+            active_convs = [c for c in all_convs if not c.get('archived', False)]
+            if active_convs:
+                last_title = active_convs[0].get('title', 'Untitled') or 'Untitled'
+        
+        # Calculate averages
+        avg_tokens_sec = 0.0
+        if _tokens_sec_history:
+            avg_tokens_sec = sum(_tokens_sec_history) / len(_tokens_sec_history)
+        
+        avg_latency_ms = 0.0
+        if _latency_history:
+            avg_latency_ms = sum(_latency_history) / len(_latency_history)
+        
+        # Calculate uptime in hours
+        uptime_seconds = time.time() - _app_start_time
+        uptime_hours = uptime_seconds / 3600.0
+        
+        result = {
+            "active_chats": active_chats,
+            "archived_chats": archived_chats,
+            "last_title": last_title,
+            "avg_tokens_sec": round(avg_tokens_sec, 1),
+            "avg_latency_ms": round(avg_latency_ms, 0),
+            "uptime_h": round(uptime_hours, 1),
+            "session_tokens": _session_token_count,
+            "latency_history": _latency_history[-5:],  # Last 5 for charting
+            "tokens_history": _tokens_sec_history[-5:],  # Last 5 for charting
+        }
+        
+        logger.info(f"[DASHBOARD] Summary: {active_chats} active, {archived_chats} archived, uptime: {uptime_hours:.1f}h")
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"[DASHBOARD] Error getting summary: {e}")
+        return jsonify({
+            "active_chats": 0,
+            "archived_chats": 0,
+            "last_title": "Error",
+            "avg_tokens_sec": 0.0,
+            "avg_latency_ms": 0.0,
+            "uptime_h": 0.0,
+            "session_tokens": 0,
+            "latency_history": [],
+            "tokens_history": [],
+        }), 500

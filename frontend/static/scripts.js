@@ -2116,24 +2116,242 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
   
-  // Enhanced system status update with perf panel
+  // Enhanced system status update with perf panel and status indicator
   const originalUpdateSystemStatus = updateSystemStatus;
   updateSystemStatus = async function() {
     await originalUpdateSystemStatus();
     
-    // Also update performance panel
+    // Also update performance panel and status indicator
     try {
       const response = await fetch('/api/system_stats');
       const stats = await response.json();
       updatePerfPanel(stats);
+      updateStatusIndicator(stats.status);
     } catch (error) {
       console.error('Failed to update perf panel:', error);
+      updateStatusIndicator('offline');
     }  
   };
   
   // Start polling system stats every second
   updateSystemStatus(); // Initial update
   statusBarUpdateInterval = setInterval(updateSystemStatus, 1000);
+  
+  // ========== Phase 4A: Dashboard Enhancements ==========
+  
+  // Dashboard summary update function
+  async function updateDashboardSummary() {
+    try {
+      const response = await fetch('/api/dashboard/summary');
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      const summary = await response.json();
+      
+      // Update summary bar
+      const summaryChats = document.getElementById('summary-chats');
+      if (summaryChats) {
+        summaryChats.textContent = `${summary.active_chats} active | ${summary.archived_chats} archived`;
+      }
+      
+      const summaryLastTitle = document.getElementById('summary-last-title');
+      if (summaryLastTitle) {
+        const title = summary.last_title || 'None';
+        summaryLastTitle.textContent = title.length > 25 ? title.substring(0, 22) + '...' : title;
+        summaryLastTitle.title = title;
+      }
+      
+      const summaryUptime = document.getElementById('summary-uptime');
+      if (summaryUptime) {
+        summaryUptime.textContent = `${summary.uptime_h}h`;
+      }
+      
+      const summaryTokens = document.getElementById('summary-tokens');
+      if (summaryTokens) {
+        summaryTokens.textContent = summary.session_tokens.toLocaleString();
+      }
+      
+      // Update analytics section
+      const analyticsAvgTps = document.getElementById('analytics-avg-tps');
+      if (analyticsAvgTps) {
+        analyticsAvgTps.textContent = summary.avg_tokens_sec > 0 ? summary.avg_tokens_sec.toFixed(1) : '--';
+      }
+      
+      const analyticsAvgLatency = document.getElementById('analytics-avg-latency');
+      if (analyticsAvgLatency) {
+        analyticsAvgLatency.textContent = summary.avg_latency_ms > 0 ? `${summary.avg_latency_ms}ms` : '--';
+      }
+      
+      const analyticsSessionTokens = document.getElementById('analytics-session-tokens');
+      if (analyticsSessionTokens) {
+        analyticsSessionTokens.textContent = summary.session_tokens.toLocaleString();
+      }
+      
+      // Update charts
+      updateCharts(summary.tokens_history, summary.latency_history);
+      
+    } catch (error) {
+      console.error('[DASHBOARD] Error updating summary:', error);
+    }
+  }
+  
+  // Chart drawing function
+  function updateCharts(tokensHistory, latencyHistory) {
+    // Update tokens/s chart
+    const tokensCanvas = document.getElementById('tokens-chart');
+    if (tokensCanvas && tokensHistory && tokensHistory.length > 0) {
+      const ctx = tokensCanvas.getContext('2d');
+      const width = tokensCanvas.width;
+      const height = tokensCanvas.height;
+      
+      // Clear canvas
+      ctx.clearRect(0, 0, width, height);
+      
+      // Draw chart
+      drawMiniChart(ctx, tokensHistory, width, height, '#4de0ff');
+    }
+    
+    // Update latency chart
+    const latencyCanvas = document.getElementById('latency-chart');
+    if (latencyCanvas && latencyHistory && latencyHistory.length > 0) {
+      const ctx = latencyCanvas.getContext('2d');
+      const width = latencyCanvas.width;
+      const height = latencyCanvas.height;
+      
+      // Clear canvas
+      ctx.clearRect(0, 0, width, height);
+      
+      // Draw chart
+      drawMiniChart(ctx, latencyHistory, width, height, '#f59e0b');
+    }
+  }
+  
+  // Mini chart drawing helper
+  function drawMiniChart(ctx, data, width, height, color) {
+    if (!data || data.length === 0) return;
+    
+    const padding = 10;
+    const chartWidth = width - (padding * 2);
+    const chartHeight = height - (padding * 2);
+    
+    // Find min/max for scaling
+    const maxVal = Math.max(...data);
+    const minVal = Math.min(...data);
+    const range = maxVal - minVal || 1; // Avoid division by zero
+    
+    // Calculate points
+    const points = data.map((val, idx) => {
+      const x = padding + (idx / (data.length - 1 || 1)) * chartWidth;
+      const y = padding + chartHeight - ((val - minVal) / range) * chartHeight;
+      return { x, y };
+    });
+    
+    // Draw line
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.stroke();
+    
+    // Draw points
+    ctx.fillStyle = color;
+    points.forEach(point => {
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    
+    // Draw baseline
+    ctx.strokeStyle = 'rgba(77, 224, 255, 0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padding, padding + chartHeight);
+    ctx.lineTo(padding + chartWidth, padding + chartHeight);
+    ctx.stroke();
+  }
+  
+  // Update header info from settings
+  function updateHeaderInfo() {
+    const headerModel = document.getElementById('header-model');
+    const headerTemp = document.getElementById('header-temp');
+    
+    if (headerModel && modelSelect) {
+      const model = modelSelect.value || 'qwen2.5:7b-instruct';
+      const shortModel = model.length > 25 ? model.substring(0, 22) + '...' : model;
+      headerModel.textContent = `Model: ${shortModel}`;
+      headerModel.title = `Model: ${model}`;
+    }
+    
+    if (headerTemp && temperatureSlider) {
+      headerTemp.textContent = `Temp: ${temperatureSlider.value}`;
+    }
+  }
+  
+  // Update status indicator
+  function updateStatusIndicator(status) {
+    const statusIndicator = document.getElementById('status-indicator');
+    if (!statusIndicator) return;
+    
+    // Remove all status classes
+    statusIndicator.classList.remove('connected', 'degraded', 'offline');
+    
+    // Add appropriate class
+    if (status === 'online') {
+      statusIndicator.classList.add('connected');
+      statusIndicator.querySelector('.status-text').textContent = 'Connected';
+      statusIndicator.title = 'Connected to JONS2 @ 10.0.0.32:11434';
+    } else if (status === 'degraded') {
+      statusIndicator.classList.add('degraded');
+      statusIndicator.querySelector('.status-text').textContent = 'Degraded';
+      statusIndicator.title = 'Connection degraded';
+    } else {
+      statusIndicator.classList.add('offline');
+      statusIndicator.querySelector('.status-text').textContent = 'Offline';
+      statusIndicator.title = 'Backend offline';
+    }
+  }
+  
+  // Analytics toggle functionality
+  const analyticsToggle = document.getElementById('analytics-toggle');
+  const analyticsContent = document.getElementById('analytics-content');
+  
+  if (analyticsToggle && analyticsContent) {
+    analyticsToggle.addEventListener('click', () => {
+      analyticsToggle.classList.toggle('collapsed');
+      analyticsContent.classList.toggle('collapsed');
+      
+      // Save state to localStorage
+      const isCollapsed = analyticsToggle.classList.contains('collapsed');
+      localStorage.setItem('joeyai-analytics-collapsed', isCollapsed ? 'true' : 'false');
+    });
+    
+    // Restore collapsed state from localStorage
+    const savedState = localStorage.getItem('joeyai-analytics-collapsed');
+    if (savedState === 'true') {
+      analyticsToggle.classList.add('collapsed');
+      analyticsContent.classList.add('collapsed');
+    }
+  }
+  
+  // Update header on model/temp changes
+  if (modelSelect) {
+    modelSelect.addEventListener('change', updateHeaderInfo);
+  }
+  
+  if (temperatureSlider) {
+    temperatureSlider.addEventListener('input', updateHeaderInfo);
+  }
+  
+  // Initialize dashboard
+  updateHeaderInfo();
+  updateDashboardSummary();
+  
+  // Poll dashboard summary every 30 seconds
+  setInterval(updateDashboardSummary, 30000);
+  
+  console.log('[DASHBOARD] Phase 4A enhancements initialized');
   
   // ========== SETTINGS MODAL FUNCTIONALITY ==========
   
