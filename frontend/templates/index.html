@@ -3,7 +3,7 @@
 <html>
 <head>
   <title>Joey_AI Dashboard</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ cache_bust }}">
   <!-- Prism.js for syntax highlighting -->
   <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
@@ -14,13 +14,22 @@
 <body class="theme-joey">
   <!-- LOGO_SRC: {{ url_for('static', filename='img/joey_ai_main_logo.png') }} -->
   <div class="shell">
-    <aside class="sidebar" id="sidebar">
+    <aside class="chat-sidebar" id="sidebar">
       <div class="sidebar-header">
-        <h2>Conversations</h2>
-        <button id="new-conversation-btn">New Chat</button>
+        <h2 class="sidebar-title">CHAT HISTORY</h2>
+        <button id="new-conversation-btn" class="new-chat-btn">+ New</button>
       </div>
-      <input type="text" id="conversation-search" placeholder="Search conversations..." />
-      <div id="conversation-list" class="conversation-list"></div>
+      
+      <!-- Recent Chats Preview Panel -->
+      <div class="recent-chats-section">
+        <h3 class="recent-chats-title">📌 Recent Chats</h3>
+        <div id="recent-chats-preview" class="recent-chats-preview">
+          <div class="recent-chat-empty">Loading...</div>
+        </div>
+      </div>
+      
+      <input type="text" id="conversation-search" class="chat-search" placeholder="🔍 Search chats..." />
+      <div id="conversation-list" class="chat-list"></div>
     </aside>
     <header id="topbar" class="header">
       <div class="brand">
@@ -58,21 +67,17 @@
           <span id="temperature-value">0.7</span>
         </div>
       </div>
-      <div class="topbar-actions">
-        <button id="test-render-btn" class="btn" style="margin-right: 8px;">Test Render</button>
-        <div class="gear" id="gear-dropdown">
-          <button class="gear-btn" id="gear-btn">⚙️</button>
-          <div class="gear-menu hidden" id="gear-menu">
-            <div class="gear-item" data-action="memory">Memory</div>
-            <div class="gear-item toggle-item">
-              <label>
-                <input type="checkbox" id="autosave-toggle" checked>
-                Auto-save Chats
-              </label>
-            </div>
-            <div class="gear-item" data-action="settings">Settings…</div>
-            <div class="gear-item" data-action="about">About</div>
-          </div>
+      <div class="header-right">
+        <button id="gear-btn" class="gear-btn" aria-haspopup="true" aria-expanded="false">⚙️</button>
+        <div id="gear-menu" class="gear-menu" role="menu" hidden>
+          <div class="menu-title">JoeyAI</div>
+          <button class="menu-item" data-action="memory">Memory</button>
+          <label class="menu-item checkbox">
+            <input id="autosave-toggle" type="checkbox" checked />
+            Auto-save Chats
+          </label>
+          <button class="menu-item" data-action="settings">Settings…</button>
+          <button class="menu-item" data-action="about">About</button>
         </div>
       </div>
     </header>
@@ -86,64 +91,38 @@
           <textarea id="composer-input" placeholder="Enter your prompt here…"></textarea>
           <div class="composer-actions">
             <button id="send-btn" type="submit" class="btn primary">Send</button>
-            <button id="advancedBtn" type="button" class="btn">Advanced</button>
             <button id="clearBtn" type="button" class="btn danger">Clear Chat</button>
-            <button id="deepBtn" type="button" class="btn pill">Deep Reasoning</button>
-            <button id="auditBtn" type="button" class="btn pill">Code Audit</button>
-            <button id="edgeBtn" type="button" class="btn pill">Edge Cases</button>
           </div>
         </form>
       </div>
     </main>
   </div>
 
-  <!-- System Status Bar - Enhanced -->
-  <div id="status-bar" class="status-bar">
-    <div class="status-item">
-      <span class="status-label">CPU:</span>
-      <span id="status-cpu" class="status-value">--%</span>
+  <!-- Right-Side Performance Panel -->
+  <div id="perf-panel" class="perf-panel">
+    <h3 class="perf-heading">JONS2 SYSTEM</h3>
+    <div class="perf-section" id="perf-jons2">
+      <div class="perf-item"><label>CPU:</label><span id="cpu-val" class="perf-value">--</span></div>
+      <div class="perf-item"><label>MEM:</label><span id="mem-val" class="perf-value">--</span></div>
+      <div class="perf-item"><label>GPU:</label><span id="gpu-val" class="perf-value">--</span></div>
+      <div class="perf-item"><label>VRAM:</label><span id="vram-val" class="perf-value">--</span></div>
+      <div class="perf-item"><label>FAN:</label><span id="fan-val" class="perf-value">--</span></div>
+      <div class="perf-item"><label>TEMP CPU:</label><span id="cpu-temp-val" class="perf-value">--</span></div>
+      <div class="perf-item"><label>TEMP GPU:</label><span id="gpu-temp-val" class="perf-value">--</span></div>
+      <div class="perf-item"><label>POWER:</label><span id="power-val" class="perf-value">--</span></div>
+      <div class="perf-item"><label>THROTTLE:</label><span id="throttle-val" class="perf-value">--</span></div>
     </div>
-    <div class="status-item">
-      <span class="status-label">MEM:</span>
-      <span id="status-memory" class="status-value">--%</span>
-    </div>
-    <div class="status-item" id="status-gpu-container" style="display: none;">
-      <span class="status-label">GPU:</span>
-      <span id="status-gpu" class="status-value">--%</span>
-    </div>
-    <div class="status-item" id="status-cpu-temp-container" style="display: none;">
-      <span class="status-label">CPU TEMP:</span>
-      <span id="status-cpu-temp" class="status-value">--°C</span>
-    </div>
-    <div class="status-item" id="status-gpu-temp-container" style="display: none;">
-      <span class="status-label">GPU TEMP:</span>
-      <span id="status-gpu-temp" class="status-value">--°C</span>
-    </div>
-    <div class="status-item" id="status-power-container" style="display: none;">
-      <span class="status-label">POWER:</span>
-      <span id="status-power" class="status-value">--W</span>
-    </div>
-    <div class="status-item" id="status-tokens-container" style="display: none;">
-      <span class="status-label">TOKENS/S:</span>
-      <span id="status-tokens" class="status-value">-- t/s</span>
-    </div>
-    <div class="status-item" id="status-context-container" style="display: none;">
-      <span class="status-label">CTX:</span>
-      <span id="status-context" class="status-value">--</span>
-    </div>
-    <div class="status-item">
-      <span class="status-label">MODEL:</span>
-      <span id="status-model" class="status-value">--</span>
-    </div>
-    <div class="status-item">
-      <span class="status-label">LAT:</span>
-      <span id="status-latency" class="status-value">--s</span>
-    </div>
-    <div class="status-item">
-      <span class="status-label">STATUS:</span>
-      <span id="status-connection" class="status-indicator offline">●</span>
+
+    <h3 class="perf-heading">JOEYAI MODEL</h3>
+    <div class="perf-section" id="perf-ai">
+      <div class="perf-item"><label>TOKENS/S:</label><span id="tps-val" class="perf-value">--</span></div>
+      <div class="perf-item"><label>CTX:</label><span id="ctx-val" class="perf-value">--</span></div>
+      <div class="perf-item"><label>MODEL:</label><span id="model-val" class="perf-value">--</span></div>
+      <div class="perf-item"><label>LAT:</label><span id="lat-val" class="perf-value">--</span></div>
+      <div class="perf-item"><label>STATUS:</label><span id="status-val" class="perf-value">--</span></div>
     </div>
   </div>
+
 
   <!-- Toast Container -->
   <div id="toast-container" class="toast-container"></div>
@@ -165,7 +144,62 @@
     </div>
   </div>
 
-  <script src="{{ url_for('static', filename='scripts.js') }}"></script>
-  <script src="{{ url_for('static', filename='keyboard-shortcuts.js') }}"></script>
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>JoeyAI Settings</h3>
+        <button id="settingsModalClose" class="icon-btn" aria-label="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-form">
+          <div class="setting-item">
+            <label for="settings-model">Model:</label>
+            <select id="settings-model" class="control-input">
+              <option value="">Loading...</option>
+            </select>
+          </div>
+          
+          <div class="setting-item">
+            <label for="settings-temperature">Temperature:</label>
+            <div class="temperature-control">
+              <input type="range" id="settings-temperature" min="0" max="1" step="0.01" value="0.7" class="control-slider">
+              <span id="settings-temperature-value">0.7</span>
+            </div>
+          </div>
+          
+          <div class="setting-item">
+            <label>
+              <input type="checkbox" id="settings-auto-save" checked>
+              Auto-Save Chats
+            </label>
+          </div>
+          
+          <div class="setting-item">
+            <label for="settings-theme">Theme:</label>
+            <select id="settings-theme" class="control-input">
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+              <option value="system">System</option>
+            </select>
+          </div>
+          
+          <div class="setting-item">
+            <label for="settings-memory-limit">Memory Limit (chats):</label>
+            <input type="number" id="settings-memory-limit" class="control-input" min="1" max="50" value="10">
+          </div>
+        </div>
+        
+        <div class="modal-actions">
+          <button id="settings-save-btn" class="btn primary">Save Settings</button>
+          <button id="settings-reset-btn" class="btn danger">Reset to Defaults</button>
+          <button id="settings-cancel-btn" class="btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='scripts.js') }}?v={{ cache_bust }}"></script>
+  <script src="{{ url_for('static', filename='keyboard-shortcuts.js') }}?v={{ cache_bust }}"></script>
 </body>
 </html>

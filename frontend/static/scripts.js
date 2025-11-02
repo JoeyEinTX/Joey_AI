@@ -26,7 +26,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const conversationList = document.getElementById('conversation-list');
   const conversationSearch = document.getElementById('conversation-search');
   const healthDot = document.getElementById('health-dot');
-  const testRenderBtn = document.getElementById('test-render-btn');
   const manualModelContainer = document.getElementById('manual-model-container');
   const manualModelInput = document.getElementById('model-manual');
   const testModelBtn = document.getElementById('test-model-btn');
@@ -40,11 +39,20 @@ document.addEventListener('DOMContentLoaded', () => {
   let isStreaming = false;
   let healthStatus = { ok: false, base: null, state: 'offline' }; // online | degraded | offline
   let lastSendFailed = false;
+  let sessionRecoveryAttempted = false;
   
   // Expose currentConversationId to global scope for keyboard shortcuts
   Object.defineProperty(window, 'currentConversationId', {
     get: () => currentConversationId,
-    set: (value) => { currentConversationId = value; }
+    set: (value) => { 
+      currentConversationId = value;
+      // Save to localStorage for instant recovery
+      if (value !== null) {
+        localStorage.setItem('joeyai-last-conversation', value);
+        // Also save to backend settings
+        saveLastActiveConversation(value);
+      }
+    }
   });
   
   // Initialize markdown-it
@@ -157,27 +165,6 @@ document.addEventListener('DOMContentLoaded', () => {
   checkHealth(); // Initial check
   setInterval(checkHealth, 10000);
 
-  // Test Render button functionality
-  if (testRenderBtn) {
-    testRenderBtn.addEventListener('click', async () => {
-      console.log('Test Render button clicked');
-      try {
-        const response = await fetch('/v1/dev/hello');
-        const data = await response.json();
-        const text = data?.choices?.[0]?.message?.content || "";
-        
-        const { bubble } = ensureAssistantBubble();
-        bubble.classList.remove("pending");
-        bubble.innerHTML = renderAssistantMessage(text);
-        
-        console.log('Test render completed');
-      } catch (error) {
-        console.error('Test render failed:', error);
-        showToast('Test render failed: ' + error.message, 'error');
-      }
-    });
-  }
-
   // Bind events after DOMContentLoaded with deduplication guard
   let sendInProgress = false;
   
@@ -245,6 +232,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     console.log('Sending message:', text.substring(0, 50) + '...');
     
+    // Track if this is the first message in a new conversation
+    const isNewConversation = !currentConversationId;
+    
     // Create new conversation if none exists
     if (!currentConversationId) {
       currentConversationId = await createNewConversation();
@@ -309,8 +299,16 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.textContent = 'Send';
       isStreaming = false;
       
+      // Generate title for new conversations after first message
+      if (isNewConversation && currentConversationId) {
+        generateConversationTitle(currentConversationId, text);
+      }
+      
       // Refresh sidebar to show updated conversation
       refreshSidebar();
+      
+      // Update recent chats preview
+      loadRecentChatsPreview();
     }
   }
 
@@ -714,6 +712,69 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
   
+  // Generate conversation title using AI
+  async function generateConversationTitle(conversationId, userMessage) {
+    try {
+      console.log('Generating title for conversation:', conversationId);
+      
+      // Show "(Generating title...)" in sidebar temporarily
+      updateConversationTitleInSidebar(conversationId, '(Generating title...)');
+      
+      // Create timeout promise (5 seconds)
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Title generation timeout')), 5000);
+      });
+      
+      // Create fetch promise
+      const fetchPromise = fetch('/api/generate_title', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversation_id: conversationId,
+          messages: [{ role: 'user', content: userMessage }]
+        })
+      });
+      
+      // Race between fetch and timeout
+      const response = await Promise.race([fetchPromise, timeoutPromise]);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      const data = await response.json();
+      const title = data.title || 'Untitled Chat';
+      
+      console.log('Generated title:', title);
+      
+      // Update sidebar with generated title
+      updateConversationTitleInSidebar(conversationId, title);
+      
+    } catch (error) {
+      console.error('Failed to generate title:', error);
+      // Fallback to "Untitled Chat" on error
+      updateConversationTitleInSidebar(conversationId, 'Untitled Chat');
+    }
+  }
+  
+  // Update conversation title in sidebar without full refresh
+  function updateConversationTitleInSidebar(conversationId, title) {
+    if (!conversationList) return;
+    
+    const item = conversationList.querySelector(`[data-conversation-id="${conversationId}"]`);
+    if (item) {
+      const titleEl = item.querySelector('.conversation-title');
+      if (titleEl) {
+        titleEl.textContent = title;
+        // Add ellipsis truncation and tooltip
+        titleEl.title = title;
+        titleEl.style.overflow = 'hidden';
+        titleEl.style.textOverflow = 'ellipsis';
+        titleEl.style.whiteSpace = 'nowrap';
+      }
+    }
+  }
+  
   // Temperature slider update
   if (temperatureSlider && temperatureValue) {
     temperatureSlider.addEventListener('input', (e) => {
@@ -983,7 +1044,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!conversationList) return;
     
     try {
-      const response = await fetch('/conversations');
+      const response = await fetch('/conversations?include_archived=true');
       const conversations = await response.json();
       
       conversationList.innerHTML = '';
@@ -993,30 +1054,405 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       
-      conversations.forEach(conv => {
-        const item = document.createElement('div');
-        item.className = 'conversation-item';
-        item.dataset.conversationId = conv.id;
-        
-        if (conv.id === currentConversationId) {
-          item.classList.add('active');
-        }
-        
-        const title = conv.title || 'New Conversation';
-        const updatedAt = new Date(conv.updated_at).toLocaleDateString();
-        
-        item.innerHTML = `
-          <div class="conversation-title">${title}</div>
-          <div class="conversation-updated">${updatedAt}</div>
-        `;
-        
-        item.addEventListener('click', () => loadConversation(conv.id));
-        conversationList.appendChild(item);
+      // Separate active and archived conversations
+      const activeConvs = conversations.filter(c => !c.archived);
+      const archivedConvs = conversations.filter(c => c.archived);
+      
+      // Render active conversations
+      activeConvs.forEach(conv => {
+        conversationList.appendChild(createConversationItem(conv, false));
       });
+      
+      // Render archived section if there are archived conversations
+      if (archivedConvs.length > 0) {
+        const archivedHeader = document.createElement('div');
+        archivedHeader.className = 'archived-header';
+        archivedHeader.innerHTML = '<span class="archived-icon">🗃</span> Archived Chats';
+        archivedHeader.style.marginTop = '16px';
+        archivedHeader.style.padding = '8px 12px';
+        archivedHeader.style.color = 'var(--muted, #8aa6c1)';
+        archivedHeader.style.fontSize = '13px';
+        archivedHeader.style.fontWeight = '600';
+        archivedHeader.style.cursor = 'pointer';
+        archivedHeader.style.userSelect = 'none';
+        
+        // Toggle archived visibility
+        let archivedVisible = true;
+        archivedHeader.addEventListener('click', () => {
+          archivedVisible = !archivedVisible;
+          archivedConvs.forEach(conv => {
+            const item = conversationList.querySelector(`[data-conversation-id="${conv.id}"]`);
+            if (item) {
+              item.style.display = archivedVisible ? 'flex' : 'none';
+            }
+          });
+        });
+        
+        conversationList.appendChild(archivedHeader);
+        
+        archivedConvs.forEach(conv => {
+          conversationList.appendChild(createConversationItem(conv, true));
+        });
+      }
       
     } catch (error) {
       console.error('Failed to refresh sidebar:', error);
       conversationList.innerHTML = '<div class="muted">Failed to load conversations</div>';
+    }
+  }
+  
+  // Create a conversation item with context menu
+  function createConversationItem(conv, isArchived) {
+    const item = document.createElement('div');
+    item.className = 'conversation-item';
+    item.dataset.conversationId = conv.id;
+    
+    if (conv.id === currentConversationId) {
+      item.classList.add('active');
+    }
+    
+    if (isArchived) {
+      item.style.opacity = '0.7';
+    }
+    
+    const title = conv.title || 'New Conversation';
+    const updatedAt = new Date(conv.updated_at).toLocaleDateString();
+    
+    item.innerHTML = `
+      <div class="conversation-content" style="flex: 1; min-width: 0; cursor: pointer;">
+        <div class="conversation-title" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${title}">${title}</div>
+        <div class="conversation-updated" style="font-size: 11px; color: var(--muted, #8aa6c1);">${updatedAt}</div>
+      </div>
+      <button class="conversation-menu-btn" aria-label="More options" style="opacity: 0; transition: opacity 0.2s;">⋮</button>
+    `;
+    
+    // Show menu button on hover
+    item.addEventListener('mouseenter', () => {
+      const menuBtn = item.querySelector('.conversation-menu-btn');
+      if (menuBtn) menuBtn.style.opacity = '1';
+    });
+    
+    item.addEventListener('mouseleave', () => {
+      const menuBtn = item.querySelector('.conversation-menu-btn');
+      if (menuBtn) menuBtn.style.opacity = '0';
+    });
+    
+    // Click on content area loads conversation
+    const contentArea = item.querySelector('.conversation-content');
+    if (contentArea) {
+      contentArea.addEventListener('click', (e) => {
+        e.stopPropagation();
+        loadConversation(conv.id);
+      });
+    }
+    
+    // Click on menu button opens context menu
+    const menuBtn = item.querySelector('.conversation-menu-btn');
+    if (menuBtn) {
+      menuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showContextMenu(e, conv, item);
+      });
+    }
+    
+    return item;
+  }
+  
+  // Show context menu for conversation
+  function showContextMenu(event, conv, itemElement) {
+    // Remove any existing context menu
+    const existingMenu = document.querySelector('.conversation-context-menu');
+    if (existingMenu) existingMenu.remove();
+    
+    // Create context menu
+    const menu = document.createElement('div');
+    menu.className = 'conversation-context-menu';
+    menu.style.cssText = `
+      position: fixed;
+      background: var(--surface-2, #0b0f16);
+      border: 1px solid var(--border, #1e2936);
+      border-radius: 6px;
+      padding: 4px 0;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      z-index: 10000;
+      min-width: 150px;
+    `;
+    
+    // Menu items
+    const menuItems = [
+      { label: 'Rename', action: 'rename', icon: '✏️' },
+      { label: conv.archived ? 'Unarchive' : 'Archive', action: conv.archived ? 'unarchive' : 'archive', icon: '🗃' },
+      { label: 'Delete', action: 'delete', icon: '🗑️', danger: true }
+    ];
+    
+    menuItems.forEach(({ label, action, icon, danger }) => {
+      const menuItem = document.createElement('div');
+      menuItem.className = 'context-menu-item';
+      menuItem.style.cssText = `
+        padding: 8px 12px;
+        cursor: pointer;
+        color: ${danger ? 'var(--danger, #ff6b6b)' : 'var(--text, #e6e9ef)'};
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: background 0.15s;
+      `;
+      menuItem.innerHTML = `<span>${icon}</span><span>${label}</span>`;
+      
+      menuItem.addEventListener('mouseenter', () => {
+        menuItem.style.background = 'var(--surface-3, #141d2a)';
+      });
+      menuItem.addEventListener('mouseleave', () => {
+        menuItem.style.background = 'transparent';
+      });
+      
+      menuItem.addEventListener('click', () => {
+        menu.remove();
+        handleContextMenuAction(action, conv, itemElement);
+      });
+      
+      menu.appendChild(menuItem);
+    });
+    
+    // Position menu
+    const rect = event.target.getBoundingClientRect();
+    menu.style.left = `${rect.left}px`;
+    menu.style.top = `${rect.bottom + 4}px`;
+    
+    document.body.appendChild(menu);
+    
+    // Close menu when clicking outside
+    setTimeout(() => {
+      document.addEventListener('click', function closeMenu() {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+      });
+    }, 0);
+  }
+  
+  // Handle context menu actions
+  async function handleContextMenuAction(action, conv, itemElement) {
+    switch (action) {
+      case 'rename':
+        startInlineRename(conv, itemElement);
+        break;
+      case 'archive':
+        await archiveConversation(conv.id);
+        break;
+      case 'unarchive':
+        await unarchiveConversation(conv.id);
+        break;
+      case 'delete':
+        showDeleteConfirmation(conv);
+        break;
+    }
+  }
+  
+  // Start inline rename
+  function startInlineRename(conv, itemElement) {
+    const titleEl = itemElement.querySelector('.conversation-title');
+    if (!titleEl) return;
+    
+    const currentTitle = conv.title || 'New Conversation';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = currentTitle;
+    input.className = 'conversation-rename-input';
+    input.style.cssText = `
+      width: 100%;
+      background: var(--surface-3, #141d2a);
+      border: 1px solid var(--glow, #4de0ff);
+      border-radius: 4px;
+      padding: 4px 8px;
+      color: var(--text, #e6e9ef);
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+    `;
+    input.title = 'Press Enter to save, Esc to cancel';
+    
+    // Replace title with input
+    const parent = titleEl.parentElement;
+    parent.replaceChild(input, titleEl);
+    input.focus();
+    input.select();
+    
+    // Save on Enter
+    input.addEventListener('keydown', async (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const newTitle = input.value.trim();
+        if (newTitle && newTitle !== currentTitle) {
+          await renameConversation(conv.id, newTitle);
+        } else {
+          // Restore original title
+          parent.replaceChild(titleEl, input);
+        }
+      } else if (e.key === 'Escape') {
+        // Cancel rename
+        parent.replaceChild(titleEl, input);
+      }
+    });
+    
+    // Save on blur
+    input.addEventListener('blur', async () => {
+      const newTitle = input.value.trim();
+      if (newTitle && newTitle !== currentTitle) {
+        await renameConversation(conv.id, newTitle);
+      } else {
+        // Restore original title if still in DOM
+        if (input.parentElement) {
+          parent.replaceChild(titleEl, input);
+        }
+      }
+    });
+  }
+  
+  // Rename conversation
+  async function renameConversation(convId, newTitle) {
+    try {
+      const response = await fetch(`/api/conversations/${convId}/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle })
+      });
+      
+      if (response.ok) {
+        await refreshSidebar();
+        showToast('Conversation renamed', 'success');
+      } else {
+        showToast('Failed to rename conversation', 'error');
+      }
+    } catch (error) {
+      console.error('Error renaming conversation:', error);
+      showToast('Failed to rename conversation', 'error');
+    }
+  }
+  
+  // Archive conversation
+  async function archiveConversation(convId) {
+    try {
+      const response = await fetch(`/api/conversations/${convId}/archive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (response.ok) {
+        await refreshSidebar();
+        showToast('Conversation archived', 'success');
+      } else {
+        showToast('Failed to archive conversation', 'error');
+      }
+    } catch (error) {
+      console.error('Error archiving conversation:', error);
+      showToast('Failed to archive conversation', 'error');
+    }
+  }
+  
+  // Unarchive conversation
+  async function unarchiveConversation(convId) {
+    try {
+      const response = await fetch(`/api/conversations/${convId}/unarchive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (response.ok) {
+        await refreshSidebar();
+        showToast('Conversation unarchived', 'success');
+      } else {
+        showToast('Failed to unarchive conversation', 'error');
+      }
+    } catch (error) {
+      console.error('Error unarchiving conversation:', error);
+      showToast('Failed to unarchive conversation', 'error');
+    }
+  }
+  
+  // Show delete confirmation modal
+  function showDeleteConfirmation(conv) {
+    // Create modal
+    const modal = document.createElement('div');
+    modal.className = 'delete-modal';
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+    `;
+    
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+      background: var(--surface-2, #0b0f16);
+      border: 1px solid var(--border, #1e2936);
+      border-radius: 8px;
+      padding: 24px;
+      max-width: 400px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    `;
+    
+    modalContent.innerHTML = `
+      <h3 style="margin: 0 0 12px 0; color: var(--text, #e6e9ef);">Delete Conversation?</h3>
+      <p style="margin: 0 0 20px 0; color: var(--muted, #8aa6c1);">Are you sure you want to delete "${conv.title || 'this conversation'}"? This action cannot be undone.</p>
+      <div style="display: flex; gap: 12px; justify-content: flex-end;">
+        <button class="cancel-btn" style="padding: 8px 16px; background: var(--surface-3, #141d2a); border: 1px solid var(--border, #1e2936); border-radius: 4px; color: var(--text, #e6e9ef); cursor: pointer;">Cancel</button>
+        <button class="delete-btn" style="padding: 8px 16px; background: var(--danger, #ff6b6b); border: none; border-radius: 4px; color: white; cursor: pointer; font-weight: 600;">Delete</button>
+      </div>
+    `;
+    
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+    
+    // Handle cancel
+    const cancelBtn = modalContent.querySelector('.cancel-btn');
+    cancelBtn.addEventListener('click', () => {
+      modal.remove();
+    });
+    
+    // Handle delete
+    const deleteBtn = modalContent.querySelector('.delete-btn');
+    deleteBtn.addEventListener('click', async () => {
+      modal.remove();
+      await deleteConversationConfirmed(conv.id);
+    });
+    
+    // Close on background click
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        modal.remove();
+      }
+    });
+  }
+  
+  // Delete conversation (after confirmation)
+  async function deleteConversationConfirmed(convId) {
+    try {
+      const response = await fetch(`/conversations/${convId}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        // If we deleted the current conversation, clear it
+        if (convId === currentConversationId) {
+          currentConversationId = null;
+          msgs.innerHTML = '';
+          document.body.classList.remove('has-started');
+        }
+        
+        await refreshSidebar();
+        showToast('Conversation deleted', 'success');
+      } else {
+        showToast('Failed to delete conversation', 'error');
+      }
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      showToast('Failed to delete conversation', 'error');
     }
   }
   
@@ -1050,7 +1486,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
       
-      // Update current conversation ID
+      // Update current conversation ID (this will trigger session save)
       currentConversationId = conversationId;
       
       // Show messages if we have any
@@ -1060,6 +1496,11 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // Scroll to bottom
       autoScroll();
+      
+      // Update recent chats preview
+      loadRecentChatsPreview();
+      
+      console.log('[SESSION] Loaded conversation:', conversationId);
       
     } catch (error) {
       console.error('Failed to load conversation:', error);
@@ -1080,6 +1521,9 @@ document.addEventListener('DOMContentLoaded', () => {
           
           // Refresh sidebar to show new conversation
           await refreshSidebar();
+          
+          // Update recent chats preview
+          loadRecentChatsPreview();
           
           console.log('New conversation created:', newId);
         }
@@ -1107,29 +1551,48 @@ document.addEventListener('DOMContentLoaded', () => {
   // Expose functions to global scope for keyboard shortcuts and external use
   window.showToast = showToast;
   window.refreshSidebar = refreshSidebar;
+  window.loadRecentChatsPreview = loadRecentChatsPreview;
   
-  // Gear menu handler
+  // Gear menu handler with robust dropdown toggle
   const gearBtn = document.getElementById('gear-btn');
   const gearMenu = document.getElementById('gear-menu');
+  
+  function closeGearMenu() {
+    if (gearMenu && !gearMenu.hasAttribute('hidden')) {
+      gearMenu.setAttribute('hidden', '');
+      if (gearBtn) gearBtn.setAttribute('aria-expanded', 'false');
+    }
+  }
   
   if (gearBtn && gearMenu) {
     gearBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      gearMenu.classList.toggle('hidden');
+      const isOpen = gearMenu.hasAttribute('hidden');
+      if (isOpen) {
+        gearMenu.removeAttribute('hidden');
+        gearBtn.setAttribute('aria-expanded', 'true');
+      } else {
+        closeGearMenu();
+      }
     });
     
     // Close gear menu when clicking outside
     document.addEventListener('click', (e) => {
-      if (!gearMenu.classList.contains('hidden') && !gearMenu.contains(e.target) && e.target !== gearBtn) {
-        gearMenu.classList.add('hidden');
+      if (!gearMenu.contains(e.target) && e.target !== gearBtn) {
+        closeGearMenu();
       }
     });
     
+    // Optional: ESC to close
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeGearMenu();
+    });
+    
     // Handle gear menu actions
-    gearMenu.querySelectorAll('.gear-item[data-action]').forEach(item => {
+    gearMenu.querySelectorAll('.menu-item[data-action]').forEach(item => {
       item.addEventListener('click', () => {
         const action = item.dataset.action;
-        gearMenu.classList.add('hidden');
+        closeGearMenu();
         
         if (action === 'memory') {
           // Open memory modal (existing functionality)
@@ -1217,8 +1680,114 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
   
+  // Session recovery and recent chats functions
+  async function saveLastActiveConversation(conversationId) {
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ last_active_conversation_id: conversationId })
+      });
+      console.log('[SESSION] Saved last active conversation:', conversationId);
+    } catch (error) {
+      console.error('[SESSION] Failed to save last active conversation:', error);
+    }
+  }
+  
+  async function recoverLastSession() {
+    if (sessionRecoveryAttempted) return;
+    sessionRecoveryAttempted = true;
+    
+    try {
+      // First try localStorage for instant recovery
+      const localStorageId = localStorage.getItem('joeyai-last-conversation');
+      
+      // Then get from backend settings
+      const response = await fetch('/api/settings');
+      const settings = await response.json();
+      const backendId = settings.last_active_conversation_id;
+      
+      // Use backend ID if available, otherwise localStorage
+      const conversationId = backendId || localStorageId;
+      
+      if (conversationId && conversationId !== 'null') {
+        const convId = parseInt(conversationId);
+        
+        // Verify conversation exists
+        const convResponse = await fetch(`/conversations/${convId}/messages`);
+        if (convResponse.ok) {
+          console.log('[SESSION] Recovering last session:', convId);
+          await loadConversation(convId);
+          showToast('Session recovered', 'success');
+        } else {
+          console.log('[SESSION] Last conversation no longer exists');
+          localStorage.removeItem('joeyai-last-conversation');
+        }
+      }
+    } catch (error) {
+      console.error('[SESSION] Failed to recover session:', error);
+    }
+  }
+  
+  async function loadRecentChatsPreview() {
+    const recentChatsContainer = document.getElementById('recent-chats-preview');
+    if (!recentChatsContainer) return;
+    
+    try {
+      const response = await fetch('/api/conversations/recent?limit=5');
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      const recentChats = await response.json();
+      
+      if (recentChats.length === 0) {
+        recentChatsContainer.innerHTML = '<div class="recent-chat-empty">No recent conversations</div>';
+        return;
+      }
+      
+      recentChatsContainer.innerHTML = '';
+      
+      recentChats.forEach(chat => {
+        const chatItem = document.createElement('div');
+        chatItem.className = 'recent-chat-item';
+        if (chat.id === currentConversationId) {
+          chatItem.classList.add('active');
+        }
+        
+        const title = chat.title || 'New Conversation';
+        const snippet = chat.last_message ? chat.last_message.snippet : 'No messages yet';
+        const timestamp = chat.updated_at ? new Date(chat.updated_at).toLocaleDateString() : '';
+        
+        chatItem.innerHTML = `
+          <div class="recent-chat-title" title="${title}">${title}</div>
+          <div class="recent-chat-snippet">${snippet}</div>
+          <div class="recent-chat-timestamp">${timestamp}</div>
+        `;
+        
+        chatItem.addEventListener('click', () => {
+          loadConversation(chat.id);
+        });
+        
+        recentChatsContainer.appendChild(chatItem);
+      });
+      
+      console.log('[SESSION] Loaded recent chats preview:', recentChats.length);
+      
+    } catch (error) {
+      console.error('[SESSION] Failed to load recent chats preview:', error);
+      if (recentChatsContainer) {
+        recentChatsContainer.innerHTML = '<div class="recent-chat-empty">Failed to load recent chats</div>';
+      }
+    }
+  }
+  
   // Initialize sidebar on load and after sending messages
   refreshSidebar();
+  
+  // Recover last session on page load
+  recoverLastSession();
+  
+  // Load recent chats preview
+  loadRecentChatsPreview();
   
   // Initialize
   loadModelSettings();
@@ -1337,9 +1906,23 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
   async function updateSystemStatus() {
+    const statusBar = document.getElementById('status-bar');
+    
+    // Add polling animation
+    if (statusBar) {
+      statusBar.classList.add('polling');
+    }
+    
     try {
       const response = await fetch('/api/system_stats');
       const stats = await response.json();
+      
+      // Remove polling animation after brief delay
+      setTimeout(() => {
+        if (statusBar) {
+          statusBar.classList.remove('polling');
+        }
+      }, 300);
       
       // Update CPU with color coding
       const cpuEl = document.getElementById('status-cpu');
@@ -1413,32 +1996,27 @@ document.addEventListener('DOMContentLoaded', () => {
         if (powerContainer) powerContainer.style.display = 'none';
       }
       
-      // Update Tokens per Second
+      // Update Tokens per Second (always show)
       const tokensContainer = document.getElementById('status-tokens-container');
       const tokensEl = document.getElementById('status-tokens');
-      if (stats.tokens_per_sec !== null && stats.tokens_per_sec !== undefined) {
-        if (tokensContainer) tokensContainer.style.display = 'flex';
-        if (tokensEl) {
-          tokensEl.textContent = `${stats.tokens_per_sec} t/s`;
-          tokensEl.className = 'status-value';
-          tokensEl.parentElement.title = `Tokens per Second: ${stats.tokens_per_sec}`;
-        }
-      } else {
-        if (tokensContainer) tokensContainer.style.display = 'none';
+      if (tokensContainer) tokensContainer.style.display = 'flex';
+      if (tokensEl) {
+        const tokensValue = stats.tokens_per_sec !== null && stats.tokens_per_sec !== undefined 
+          ? `${stats.tokens_per_sec.toFixed(1)} t/s` 
+          : '-- t/s';
+        tokensEl.textContent = tokensValue;
+        tokensEl.className = 'status-value';
+        tokensEl.parentElement.title = `Tokens per Second: ${stats.tokens_per_sec || '--'}`;
       }
       
-      // Update Context Used
+      // Update Context Used (always show)
       const contextContainer = document.getElementById('status-context-container');
       const contextEl = document.getElementById('status-context');
-      if (stats.context_used && stats.context_used !== '0/4096') {
-        if (contextContainer) contextContainer.style.display = 'flex';
-        if (contextEl) {
-          contextEl.textContent = stats.context_used;
-          contextEl.className = 'status-value';
-          contextEl.parentElement.title = `Context: ${stats.context_used}`;
-        }
-      } else {
-        if (contextContainer) contextContainer.style.display = 'none';
+      if (contextContainer) contextContainer.style.display = 'flex';
+      if (contextEl) {
+        contextEl.textContent = stats.context_used || '--';
+        contextEl.className = 'status-value';
+        contextEl.parentElement.title = `Context: ${stats.context_used}`;
       }
       
       // Update Model
@@ -1482,9 +2060,385 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
   
+  // Performance Panel Update Function
+  function updatePerfPanel(stats) {
+    const update = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val ?? '--';
+    };
+    
+    const updateWithClass = (id, val, getClass) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.textContent = val ?? '--';
+        if (getClass && val !== '--') {
+          el.className = `perf-value ${getClass(parseFloat(val))}`;
+        } else {
+          el.className = 'perf-value';
+        }
+      }
+    };
+    
+    // JONS2 System Metrics with color coding
+    updateWithClass('cpu-val', stats.cpu !== null ? `${stats.cpu}%` : '--', (v) => getLoadClass(v));
+    updateWithClass('mem-val', stats.memory !== null ? `${stats.memory}%` : '--', (v) => getLoadClass(v));
+    updateWithClass('gpu-val', stats.gpu !== null ? `${stats.gpu}%` : '--', (v) => getLoadClass(v));
+    update('vram-val', stats.vram_used_mb !== null ? `${stats.vram_used_mb} MB` : '--');
+    update('fan-val', stats.fan_speed_pct !== null ? `${stats.fan_speed_pct.toFixed(1)}%` : '--');
+    updateWithClass('cpu-temp-val', stats.cpu_temp !== null ? `${stats.cpu_temp}°C` : '--', (v) => getLoadClass(v, 'temp'));
+    updateWithClass('gpu-temp-val', stats.gpu_temp !== null ? `${stats.gpu_temp}°C` : '--', (v) => getLoadClass(v, 'temp'));
+    update('power-val', stats.power_draw !== null ? `${stats.power_draw.toFixed(1)}W` : '--');
+    
+    // Throttle with warning class
+    const throttleEl = document.getElementById('throttle-val');
+    if (throttleEl) {
+      throttleEl.textContent = stats.thermal_throttled ? 'YES' : 'NO';
+      throttleEl.className = stats.thermal_throttled ? 'perf-value warning' : 'perf-value';
+    }
+    
+    // JoeyAI Model Metrics
+    update('tps-val', stats.tokens_per_sec !== null ? `${stats.tokens_per_sec.toFixed(1)}` : '--');
+    update('ctx-val', stats.context_used || '--');
+    update('model-val', stats.model || '--');
+    update('lat-val', stats.latency > 0 ? `${stats.latency.toFixed(2)}s` : '--');
+    
+    // Status with color
+    const statusEl = document.getElementById('status-val');
+    if (statusEl) {
+      statusEl.textContent = stats.status || '--';
+      if (stats.status === 'online') {
+        statusEl.className = 'perf-value low';  // Green
+      } else if (stats.status === 'offline') {
+        statusEl.className = 'perf-value high';  // Red
+      } else {
+        statusEl.className = 'perf-value';
+      }
+    }
+  }
+  
+  // Enhanced system status update with perf panel
+  const originalUpdateSystemStatus = updateSystemStatus;
+  updateSystemStatus = async function() {
+    await originalUpdateSystemStatus();
+    
+    // Also update performance panel
+    try {
+      const response = await fetch('/api/system_stats');
+      const stats = await response.json();
+      updatePerfPanel(stats);
+    } catch (error) {
+      console.error('Failed to update perf panel:', error);
+    }  
+  };
+  
   // Start polling system stats every second
   updateSystemStatus(); // Initial update
   statusBarUpdateInterval = setInterval(updateSystemStatus, 1000);
+  
+  // ========== SETTINGS MODAL FUNCTIONALITY ==========
+  
+  const settingsModal = document.getElementById('settingsModal');
+  const settingsModalClose = document.getElementById('settingsModalClose');
+  const settingsModelSelect = document.getElementById('settings-model');
+  const settingsTemperatureSlider = document.getElementById('settings-temperature');
+  const settingsTemperatureValue = document.getElementById('settings-temperature-value');
+  const settingsAutoSaveCheckbox = document.getElementById('settings-auto-save');
+  const settingsThemeSelect = document.getElementById('settings-theme');
+  const settingsMemoryLimitInput = document.getElementById('settings-memory-limit');
+  const settingsSaveBtn = document.getElementById('settings-save-btn');
+  const settingsResetBtn = document.getElementById('settings-reset-btn');
+  const settingsCancelBtn = document.getElementById('settings-cancel-btn');
+  
+  let currentSettings = null;
+  
+  // Load settings from backend
+  async function loadSettings() {
+    try {
+      const response = await fetch('/api/settings');
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const settings = await response.json();
+      currentSettings = settings;
+      
+      // Store in localStorage for instant restore
+      localStorage.setItem('joeyai-settings', JSON.stringify(settings));
+      
+      return settings;
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+      
+      // Try to load from localStorage as fallback
+      const cached = localStorage.getItem('joeyai-settings');
+      if (cached) {
+        return JSON.parse(cached);
+      }
+      
+      // Return defaults if all else fails
+      return {
+        model: 'qwen2.5:7b-instruct',
+        temperature: 0.7,
+        auto_save: true,
+        theme: 'dark',
+        memory_limit: 10
+      };
+    }
+  }
+  
+  // Apply settings to UI
+  function applySettings(settings) {
+    // Apply model (sync with main model select)
+    if (modelSelect && settings.model) {
+      modelSelect.value = settings.model;
+    }
+    
+    // Apply temperature (sync with main temperature slider)
+    if (temperatureSlider && settings.temperature !== undefined) {
+      temperatureSlider.value = settings.temperature;
+      if (temperatureValue) {
+        temperatureValue.textContent = settings.temperature;
+      }
+    }
+    
+    // Apply auto-save
+    const autosaveToggle = document.getElementById('autosave-toggle');
+    if (autosaveToggle && settings.auto_save !== undefined) {
+      autosaveToggle.checked = settings.auto_save;
+    }
+    
+    // Apply theme
+    applyTheme(settings.theme || 'dark');
+    
+    console.log('[USER_SETTINGS] Applied settings:', settings);
+  }
+  
+  // Apply theme to body
+  function applyTheme(theme) {
+    const body = document.body;
+    
+    // Remove existing theme classes
+    body.classList.remove('theme-dark', 'theme-light', 'theme-system');
+    
+    if (theme === 'system') {
+      // Detect system theme
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      body.classList.add(prefersDark ? 'theme-dark' : 'theme-light');
+    } else {
+      body.classList.add(`theme-${theme}`);
+    }
+    
+    console.log('[USER_SETTINGS] Theme applied:', theme);
+  }
+  
+  // Populate settings modal with current settings
+  async function populateSettingsModal() {
+    const settings = currentSettings || await loadSettings();
+    
+    // Populate model dropdown (reuse models from main dropdown)
+    if (settingsModelSelect && modelSelect) {
+      settingsModelSelect.innerHTML = modelSelect.innerHTML;
+      settingsModelSelect.value = settings.model || '';
+    }
+    
+    // Populate temperature
+    if (settingsTemperatureSlider && settings.temperature !== undefined) {
+      settingsTemperatureSlider.value = settings.temperature;
+      if (settingsTemperatureValue) {
+        settingsTemperatureValue.textContent = settings.temperature.toFixed(2);
+      }
+    }
+    
+    // Populate auto-save
+    if (settingsAutoSaveCheckbox && settings.auto_save !== undefined) {
+      settingsAutoSaveCheckbox.checked = settings.auto_save;
+    }
+    
+    // Populate theme
+    if (settingsThemeSelect && settings.theme) {
+      settingsThemeSelect.value = settings.theme;
+    }
+    
+    // Populate memory limit
+    if (settingsMemoryLimitInput && settings.memory_limit !== undefined) {
+      settingsMemoryLimitInput.value = settings.memory_limit;
+    }
+  }
+  
+  // Open settings modal
+  function openSettingsModal() {
+    if (!settingsModal) return;
+    
+    populateSettingsModal();
+    settingsModal.classList.remove('hidden');
+    settingsModal.setAttribute('aria-hidden', 'false');
+  }
+  
+  // Close settings modal
+  function closeSettingsModal() {
+    if (!settingsModal) return;
+    
+    settingsModal.classList.add('hidden');
+    settingsModal.setAttribute('aria-hidden', 'true');
+  }
+  
+  // Save settings
+  async function saveSettings() {
+    try {
+      const newSettings = {
+        model: settingsModelSelect?.value || 'qwen2.5:7b-instruct',
+        temperature: parseFloat(settingsTemperatureSlider?.value || 0.7),
+        auto_save: settingsAutoSaveCheckbox?.checked ?? true,
+        theme: settingsThemeSelect?.value || 'dark',
+        memory_limit: parseInt(settingsMemoryLimitInput?.value || 10)
+      };
+      
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newSettings)
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || `HTTP ${response.status}`);
+      }
+      
+      const savedSettings = await response.json();
+      currentSettings = savedSettings;
+      
+      // Update localStorage
+      localStorage.setItem('joeyai-settings', JSON.stringify(savedSettings));
+      
+      // Apply settings to UI
+      applySettings(savedSettings);
+      
+      // Close modal
+      closeSettingsModal();
+      
+      // Show success toast
+      showToast('Settings saved successfully', 'success');
+      
+      console.log('[USER_SETTINGS] Saved:', savedSettings);
+      
+    } catch (error) {
+      console.error('[USER_SETTINGS] Save failed:', error);
+      showToast(`Failed to save settings: ${error.message}`, 'error');
+    }
+  }
+  
+  // Reset settings to defaults
+  async function resetSettings() {
+    if (!confirm('Reset all settings to defaults? This cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch('/api/settings/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      const defaultSettings = await response.json();
+      currentSettings = defaultSettings;
+      
+      // Update localStorage
+      localStorage.setItem('joeyai-settings', JSON.stringify(defaultSettings));
+      
+      // Apply settings to UI
+      applySettings(defaultSettings);
+      
+      // Repopulate modal
+      populateSettingsModal();
+      
+      // Show success toast
+      showToast('Settings reset to defaults', 'success');
+      
+      console.log('[USER_SETTINGS] Reset to defaults:', defaultSettings);
+      
+    } catch (error) {
+      console.error('[USER_SETTINGS] Reset failed:', error);
+      showToast(`Failed to reset settings: ${error.message}`, 'error');
+    }
+  }
+  
+  // Settings modal event listeners
+  if (settingsModalClose) {
+    settingsModalClose.addEventListener('click', closeSettingsModal);
+  }
+  
+  if (settingsCancelBtn) {
+    settingsCancelBtn.addEventListener('click', closeSettingsModal);
+  }
+  
+  if (settingsSaveBtn) {
+    settingsSaveBtn.addEventListener('click', saveSettings);
+  }
+  
+  if (settingsResetBtn) {
+    settingsResetBtn.addEventListener('click', resetSettings);
+  }
+  
+  // Close modal on background click
+  if (settingsModal) {
+    settingsModal.addEventListener('click', (e) => {
+      if (e.target === settingsModal) {
+        closeSettingsModal();
+      }
+    });
+  }
+  
+  // Temperature slider update in settings modal
+  if (settingsTemperatureSlider && settingsTemperatureValue) {
+    settingsTemperatureSlider.addEventListener('input', (e) => {
+      settingsTemperatureValue.textContent = parseFloat(e.target.value).toFixed(2);
+    });
+  }
+  
+  // Update gear menu to open settings modal
+  if (gearMenu) {
+    const settingsMenuItem = gearMenu.querySelector('[data-action="settings"]');
+    if (settingsMenuItem) {
+      // Replace the existing click handler
+      const newSettingsItem = settingsMenuItem.cloneNode(true);
+      settingsMenuItem.parentNode.replaceChild(newSettingsItem, settingsMenuItem);
+      
+      newSettingsItem.addEventListener('click', () => {
+        closeGearMenu();
+        openSettingsModal();
+      });
+    }
+  }
+  
+  // Load and apply settings on page load
+  (async () => {
+    // Try to load from localStorage first for instant restore
+    const cached = localStorage.getItem('joeyai-settings');
+    if (cached) {
+      try {
+        const cachedSettings = JSON.parse(cached);
+        applySettings(cachedSettings);
+      } catch (error) {
+        console.error('Failed to parse cached settings:', error);
+      }
+    }
+    
+    // Then load from backend (which will update if different)
+    const settings = await loadSettings();
+    applySettings(settings);
+  })();
+  
+  // Listen for system theme changes when theme is set to 'system'
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+    if (currentSettings && currentSettings.theme === 'system') {
+      applyTheme('system');
+    }
+  });
+  
+  // ========== END SETTINGS MODAL FUNCTIONALITY ==========
   
   console.log('Chat send/stream event wiring initialized with enhanced DOM guards and rendering');
 });

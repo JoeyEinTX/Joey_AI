@@ -23,9 +23,17 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS conversations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT,
+        archived BOOLEAN DEFAULT FALSE,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )''')
+    
+    # Add archived column if it doesn't exist (migration)
+    try:
+        c.execute("SELECT archived FROM conversations LIMIT 1")
+    except sqlite3.OperationalError:
+        c.execute("ALTER TABLE conversations ADD COLUMN archived BOOLEAN DEFAULT FALSE")
+        conn.commit()
     # Messages table
     c.execute('''CREATE TABLE IF NOT EXISTS messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,13 +77,77 @@ def get_conversation(conv_id: int) -> Optional[Dict]:
         return dict(row)
     return None
 
-def list_conversations(limit: int = 50) -> List[Dict]:
+def list_conversations(limit: int = 50, include_archived: bool = False) -> List[Dict]:
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT * FROM conversations ORDER BY updated_at DESC LIMIT ?", (limit,))
+    if include_archived:
+        c.execute("SELECT * FROM conversations ORDER BY archived ASC, updated_at DESC LIMIT ?", (limit,))
+    else:
+        c.execute("SELECT * FROM conversations WHERE archived = FALSE OR archived IS NULL ORDER BY updated_at DESC LIMIT ?", (limit,))
     rows = c.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+def get_recent_conversations_with_snippets(limit: int = 5) -> List[Dict]:
+    """
+    Get recent conversations with message snippets for preview.
+    Returns only non-archived conversations.
+    """
+    conn = get_conn()
+    c = conn.cursor()
+    
+    # Get recent conversations
+    c.execute("""
+        SELECT * FROM conversations 
+        WHERE archived = FALSE OR archived IS NULL 
+        ORDER BY updated_at DESC 
+        LIMIT ?
+    """, (limit,))
+    
+    conversations = [dict(row) for row in c.fetchall()]
+    
+    # Get last message for each conversation
+    for conv in conversations:
+        c.execute("""
+            SELECT content, role, ts 
+            FROM messages 
+            WHERE conversation_id = ? 
+            ORDER BY ts DESC 
+            LIMIT 1
+        """, (conv['id'],))
+        
+        last_msg = c.fetchone()
+        if last_msg:
+            # Truncate content to first 100 chars for snippet
+            content = dict(last_msg)['content']
+            snippet = content[:100] + ('...' if len(content) > 100 else '')
+            conv['last_message'] = {
+                'content': content,
+                'snippet': snippet,
+                'role': dict(last_msg)['role'],
+                'timestamp': dict(last_msg)['ts']
+            }
+        else:
+            conv['last_message'] = None
+    
+    conn.close()
+    return conversations
+
+def archive_conversation(conv_id: int) -> Dict:
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("UPDATE conversations SET archived = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (conv_id,))
+    conn.commit()
+    conn.close()
+    return get_conversation(conv_id)
+
+def unarchive_conversation(conv_id: int) -> Dict:
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("UPDATE conversations SET archived = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (conv_id,))
+    conn.commit()
+    conn.close()
+    return get_conversation(conv_id)
 
 def rename_conversation(conv_id: int, title: str) -> Dict:
     conn = get_conn()

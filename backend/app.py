@@ -1,4 +1,4 @@
-# ─── PATH SETUP (MUST BE FIRST) ────────────────────────────────────────────────
+  # ─── PATH SETUP (MUST BE FIRST) ────────────────────────────────────────────────
 import sys
 from pathlib import Path
 
@@ -29,37 +29,92 @@ from backend.routes.chat_routes import chat_bp
 from backend.routes.llm_gateway import llm_bp
 from backend.routes.models_routes import models_bp
 from backend.routes.system_routes import system_bp
+from backend.routes.settings_routes import settings_bp
 
 from backend.services.conversation_service import init_db as init_conversation_db
 from backend.config import FlaskConfig, OllamaConfig
 
 import logging
 
+# ─── FLASK APP INITIALIZATION (TOP LEVEL) ──────────────────────────────────────
+# Use dynamic paths to locate frontend directories
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+template_folder = os.path.join(project_root, "frontend", "templates")
+static_folder = os.path.join(project_root, "frontend", "static")
+
+app = Flask(__name__, template_folder=template_folder, static_folder=static_folder)
+
+# Disable static file caching in development mode (prevents browser cache issues)
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+# ───────────────────────────────────────────────────────────────────────────────
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Set configuration from environment variables
+# Use OLLAMA_BASE_URL if available, otherwise fall back to OLLAMA_BASE, then default
+app.config["OLLAMA_BASE"] = os.getenv("OLLAMA_BASE_URL", os.getenv("OLLAMA_BASE", "http://10.0.0.32:11434"))
+
+# Configure logging
+logging.basicConfig(
+    level=getattr(logging, FlaskConfig.LOG_LEVEL.upper(), logging.INFO),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+logger = logging.getLogger(__name__)
+
+# Register blueprints
+app.register_blueprint(query_bp)
+app.register_blueprint(preset_bp)
+app.register_blueprint(health_bp)
+app.register_blueprint(memory_bp)
+app.register_blueprint(conversations_bp)
+app.register_blueprint(chat_bp)
+app.register_blueprint(llm_bp)
+app.register_blueprint(models_bp)
+app.register_blueprint(system_bp)
+app.register_blueprint(settings_bp)
+
+
+@app.route('/')
+def home():
+    import time
+    # Add cache-busting timestamp for static assets
+    return render_template('index.html', cache_bust=int(time.time()))
+
+
+@app.route('/v1/debug/static')
+def debug_static():
+    """Debug endpoint to check static file configuration"""
+    logo_path = os.path.join(current_app.static_folder, 'img', 'joey_ai_main_logo.png')
+    return jsonify({
+        "static_folder": current_app.static_folder,
+        "logo_url": url_for('static', filename='img/joey_ai_main_logo.png'),
+        "logo_exists": os.path.exists(logo_path)
+    })
+
+
+@app.route('/v1/dev/hello')
+def dev_hello():
+    """Test route for render sanity checking"""
+    return jsonify({
+        "choices": [{
+            "message": {
+                "role": "assistant",
+                "content": "**Hello from /v1/dev/hello**"
+            }
+        }]
+    })
+
 
 def main():
     """Main entry point for JoeyAI application."""
-    # Load environment variables from .env file
-    load_dotenv()
-
     # Print Ollama configuration for debugging
     print("")
     OllamaConfig.print_config()
     print("")
 
-    # Configure logging
-    logging.basicConfig(
-        level=getattr(logging, FlaskConfig.LOG_LEVEL.upper(), logging.INFO),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-
-    app = Flask(__name__, template_folder="../frontend/templates", static_folder="../frontend/static")
-
-    # Set configuration from environment variables
-    # Use OLLAMA_BASE_URL if available, otherwise fall back to OLLAMA_BASE, then default
-    app.config["OLLAMA_BASE"] = os.getenv("OLLAMA_BASE_URL", os.getenv("OLLAMA_BASE", "http://10.0.0.32:11434"))
-
     # Boot logging
-    logger = logging.getLogger(__name__)
     logger.info(f"[BOOT] static_folder={app.static_folder} template_folder={app.template_folder}")
 
     # Boot log for OLLAMA_BASE resolution
@@ -83,43 +138,6 @@ def main():
         source = "default"
 
     logger.info(f"[BOOT] dotenv={dotenv_path} OLLAMA_BASE={env_ollama_base} OLLAMA_BASE_URL={env_ollama_base_url} config={config_ollama} resolved={resolved_base}({source})")
-
-    # Register blueprints
-    app.register_blueprint(query_bp)
-    app.register_blueprint(preset_bp)
-    app.register_blueprint(health_bp)
-    app.register_blueprint(memory_bp)
-    app.register_blueprint(conversations_bp)
-    app.register_blueprint(chat_bp)
-    app.register_blueprint(llm_bp)
-    app.register_blueprint(models_bp)
-    app.register_blueprint(system_bp)
-
-    @app.route('/')
-    def home():
-        return render_template('index.html')
-
-    @app.route('/v1/debug/static')
-    def debug_static():
-        """Debug endpoint to check static file configuration"""
-        logo_path = os.path.join(current_app.static_folder, 'img', 'joey_ai_main_logo.png')
-        return jsonify({
-            "static_folder": current_app.static_folder,
-            "logo_url": url_for('static', filename='img/joey_ai_main_logo.png'),
-            "logo_exists": os.path.exists(logo_path)
-        })
-
-    @app.route('/v1/dev/hello')
-    def dev_hello():
-        """Test route for render sanity checking"""
-        return jsonify({
-            "choices": [{
-                "message": {
-                    "role": "assistant",
-                    "content": "**Hello from /v1/dev/hello**"
-                }
-            }]
-        })
 
     # Initialize database
     init_conversation_db()
