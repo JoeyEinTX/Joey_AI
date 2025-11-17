@@ -105,6 +105,9 @@ document.addEventListener('DOMContentLoaded', () => {
       
       healthStatus = { ok: isHealthy, base: baseUrl, state: newState };
       
+      // Update connection status bar
+      updateConnectionStatusBar(newState);
+      
       // Update health dot and base display
       if (healthDot) {
         healthDot.className = `health-dot ${newState}`;
@@ -161,6 +164,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Connection status badge update function
+  function updateConnectionStatusBar(state) {
+    const statusBadge = document.getElementById('ollama-status-badge');
+    if (!statusBadge) return;
+    
+    // Remove all state classes
+    statusBadge.classList.remove('connected', 'reconnecting', 'disconnected');
+    
+    // Update text and class based on state
+    if (state === 'online') {
+      statusBadge.classList.add('connected');
+      statusBadge.textContent = 'Ollama Connected';
+    } else if (state === 'degraded') {
+      statusBadge.classList.add('reconnecting');
+      statusBadge.textContent = 'Reconnecting…';
+    } else {
+      statusBadge.classList.add('disconnected');
+      statusBadge.textContent = 'Ollama Offline';
+    }
+  }
+  
   // Start health checking every 10 seconds per requirements
   checkHealth(); // Initial check
   setInterval(checkHealth, 10000);
@@ -602,6 +626,16 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Show messages container and hide hero
     document.body.classList.add('has-started');
+    
+    // Fade hero background on first message
+    const chatColumn = document.querySelector('.chat-column');
+    if (chatColumn && !chatColumn.classList.contains('hero-faded-bg')) {
+      // Add faded class to trigger smooth background fade
+      chatColumn.classList.add('hero-faded-bg');
+      
+      // Store in sessionStorage so it persists during page session
+      sessionStorage.setItem('joeyai-hero-faded', 'true');
+    }
   }
   
   function autoScroll() {
@@ -1050,7 +1084,7 @@ document.addEventListener('DOMContentLoaded', () => {
       conversationList.innerHTML = '';
       
       if (conversations.length === 0) {
-        conversationList.innerHTML = '<div class="muted">No conversations yet</div>';
+        conversationList.innerHTML = '';
         return;
       }
       
@@ -1101,6 +1135,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
   
+  // Helper function to strip "Title:" prefix from chat titles (case-insensitive)
+  function stripTitlePrefix(title) {
+    if (!title) return 'New Conversation';
+    const cleaned = title.trim();
+    // Strip "Title:" or "title:" prefix if present
+    if (cleaned.toLowerCase().startsWith('title:')) {
+      return cleaned.slice(6).trim();
+    }
+    return cleaned;
+  }
+
   // Create a conversation item with context menu
   function createConversationItem(conv, isArchived) {
     const item = document.createElement('div');
@@ -1115,15 +1160,17 @@ document.addEventListener('DOMContentLoaded', () => {
       item.style.opacity = '0.7';
     }
     
-    const title = conv.title || 'New Conversation';
+    const title = stripTitlePrefix(conv.title) || 'New Conversation';
     const updatedAt = new Date(conv.updated_at).toLocaleDateString();
     
     item.innerHTML = `
-      <div class="conversation-content" style="flex: 1; min-width: 0; cursor: pointer;">
-        <div class="conversation-title" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${title}">${title}</div>
-        <div class="conversation-updated" style="font-size: 11px; color: var(--muted, #8aa6c1);">${updatedAt}</div>
+      <div class="conversation-content" style="flex: 1; min-width: 0; cursor: pointer; display: flex; align-items: center; justify-content: space-between;">
+        <div style="flex: 1; min-width: 0;">
+          <div class="conversation-title" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${title}">${title}</div>
+          <div class="conversation-updated" style="font-size: 11px; color: var(--muted, #8aa6c1);">${updatedAt}</div>
+        </div>
+        <button class="conversation-menu-btn" aria-label="More options" style="opacity: 0; transition: opacity 0.2s; flex-shrink: 0; position: relative;">⋮</button>
       </div>
-      <button class="conversation-menu-btn" aria-label="More options" style="opacity: 0; transition: opacity 0.2s;">⋮</button>
     `;
     
     // Show menu button on hover
@@ -1753,8 +1800,9 @@ document.addEventListener('DOMContentLoaded', () => {
           chatItem.classList.add('active');
         }
         
-        const title = chat.title || 'New Conversation';
-        const snippet = chat.last_message ? chat.last_message.snippet : 'No messages yet';
+        // Strip "Title:" prefix from chat title
+        const title = stripTitlePrefix(chat.title) || 'New Conversation';
+        const snippet = chat.last_message ? chat.last_message.snippet : '';
         const timestamp = chat.updated_at ? new Date(chat.updated_at).toLocaleDateString() : '';
         
         chatItem.innerHTML = `
@@ -2272,44 +2320,30 @@ document.addEventListener('DOMContentLoaded', () => {
     ctx.stroke();
   }
   
-  // Update header info from settings
+  // Update header info - simplified (no longer needed with model controls in header)
   function updateHeaderInfo() {
-    const headerModel = document.getElementById('header-model');
-    const headerTemp = document.getElementById('header-temp');
-    
-    if (headerModel && modelSelect) {
-      const model = modelSelect.value || 'qwen2.5:7b-instruct';
-      const shortModel = model.length > 25 ? model.substring(0, 22) + '...' : model;
-      headerModel.textContent = `Model: ${shortModel}`;
-      headerModel.title = `Model: ${model}`;
-    }
-    
-    if (headerTemp && temperatureSlider) {
-      headerTemp.textContent = `Temp: ${temperatureSlider.value}`;
-    }
+    // Header now shows model controls directly, so no additional updates needed
+    return;
   }
   
-  // Update status indicator
+  // Update connection indicator (simplified - just colored dot)
   function updateStatusIndicator(status) {
-    const statusIndicator = document.getElementById('status-indicator');
-    if (!statusIndicator) return;
+    const connectionIndicator = document.getElementById('connection-indicator');
+    if (!connectionIndicator) return;
     
     // Remove all status classes
-    statusIndicator.classList.remove('connected', 'degraded', 'offline');
+    connectionIndicator.classList.remove('connected', 'degraded', 'offline');
     
-    // Add appropriate class
+    // Add appropriate class and tooltip
     if (status === 'online') {
-      statusIndicator.classList.add('connected');
-      statusIndicator.querySelector('.status-text').textContent = 'Connected';
-      statusIndicator.title = 'Connected to JONS2 @ 10.0.0.32:11434';
+      connectionIndicator.classList.add('connected');
+      connectionIndicator.title = 'Connected to JONS2 @ 10.0.0.32:11434';
     } else if (status === 'degraded') {
-      statusIndicator.classList.add('degraded');
-      statusIndicator.querySelector('.status-text').textContent = 'Degraded';
-      statusIndicator.title = 'Connection degraded';
+      connectionIndicator.classList.add('degraded');
+      connectionIndicator.title = 'Connection degraded';
     } else {
-      statusIndicator.classList.add('offline');
-      statusIndicator.querySelector('.status-text').textContent = 'Offline';
-      statusIndicator.title = 'Backend offline';
+      connectionIndicator.classList.add('offline');
+      connectionIndicator.title = 'Backend offline';
     }
   }
   
@@ -2335,17 +2369,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
   
-  // Update header on model/temp changes
-  if (modelSelect) {
-    modelSelect.addEventListener('change', updateHeaderInfo);
-  }
-  
-  if (temperatureSlider) {
-    temperatureSlider.addEventListener('input', updateHeaderInfo);
-  }
-  
   // Initialize dashboard
-  updateHeaderInfo();
   updateDashboardSummary();
   
   // Poll dashboard summary every 30 seconds

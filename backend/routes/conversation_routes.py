@@ -285,6 +285,10 @@ Reply with ONLY the title, no extra words or punctuation."""
             if title.startswith("'") and title.endswith("'"):
                 title = title[1:-1]
             
+            # Remove "Title:" prefix if present (case-insensitive)
+            if title.lower().startswith('title:'):
+                title = title[6:].strip()
+            
             # Limit to 5 words
             words = title.split()
             if len(words) > 5:
