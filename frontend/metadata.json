@@ -1,0 +1,5 @@
+{
+  "name": "Joey_AI Interface",
+  "description": "A clean, modern, neon-blue cyber aesthetic UI for the Joey_AI project. It allows interacting with local Ollama models, monitoring system stats of a Jetson board, and managing the AI backend.",
+  "requestFramePermissions": []
+}

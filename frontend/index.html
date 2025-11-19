@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Joey_AI Interface</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      :root {
+        /* Default Theme: Neon-Cyber */
+        --joey-main-rgb: 10 15 30;
+        --joey-secondary-rgb: 26 32 53;
+        --joey-accent-rgb: 0 191 255;
+        --joey-accent-hover-rgb: 0 168 230;
+        --joey-text-rgb: 224 224 224;
+        --joey-text-darker-rgb: 160 160 160;
+        --joey-neon-shadow: 0 0 5px #00bfff, 0 0 10px #00bfff, 0 0 15px #00bfff;
+        --joey-neon-shadow-sm: 0 0 2px #00bfff, 0 0 4px #00bfff, 0 0 6px #00bfff;
+      }
+      [data-theme='classic-dark'] {
+        --joey-main-rgb: 18 18 18;
+        --joey-secondary-rgb: 30 30 30;
+        --joey-accent-rgb: 187 134 252;
+        --joey-accent-hover-rgb: 155 104 222;
+        --joey-text-rgb: 255 255 255;
+        --joey-text-darker-rgb: 179 179 179;
+        --joey-neon-shadow: 0 0 8px rgb(187 134 252 / 0.5);
+        --joey-neon-shadow-sm: 0 0 4px rgb(187 134 252 / 0.5);
+      }
+      [data-theme='light'] {
+        --joey-main-rgb: 245 245 245;
+        --joey-secondary-rgb: 255 255 255;
+        --joey-accent-rgb: 0 123 255;
+        --joey-accent-hover-rgb: 0 103 215;
+        --joey-text-rgb: 33 37 41;
+        --joey-text-darker-rgb: 108 117 125;
+        --joey-neon-shadow: 0 0 8px rgb(0 123 255 / 0.4);
+        --joey-neon-shadow-sm: 0 0 4px rgb(0 123 255 / 0.4);
+      }
+    </style>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              'joey-main': 'rgb(var(--joey-main-rgb) / <alpha-value>)',
+              'joey-secondary': 'rgb(var(--joey-secondary-rgb) / <alpha-value>)',
+              'joey-accent': 'rgb(var(--joey-accent-rgb) / <alpha-value>)',
+              'joey-accent-hover': 'rgb(var(--joey-accent-hover-rgb) / <alpha-value>)',
+              'joey-text': 'rgb(var(--joey-text-rgb) / <alpha-value>)',
+              'joey-text-darker': 'rgb(var(--joey-text-darker-rgb) / <alpha-value>)',
+              'joey-success': '#00ff7f',
+              'joey-warning': '#ffd700',
+              'joey-danger': '#ff4d4d',
+            },
+            fontFamily: {
+              'sans': ['Inter', 'sans-serif'],
+              'mono': ['Fira Code', 'monospace'],
+            },
+            boxShadow: {
+              'neon': 'var(--joey-neon-shadow)',
+              'neon-sm': 'var(--joey-neon-shadow-sm)',
+            }
+          },
+        },
+      };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-syntax-highlighter/": "https://esm.sh/react-syntax-highlighter@15.5.0/",
+    "react-syntax-highlighter": "https://esm.sh/react-syntax-highlighter@15.5.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-joey-main text-joey-text transition-colors duration-300">
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
