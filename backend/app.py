@@ -1,3 +1,7 @@
+# Import path setup first to enable absolute imports
+from utils.path_setup import setup_project_path
+setup_project_path()
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -24,10 +28,14 @@ app.register_blueprint(system_bp, url_prefix='/api/system')
 app.register_blueprint(models_bp, url_prefix='/api')
 app.register_blueprint(chats_bp, url_prefix='/api/chats')
 
-if __name__ == "__main__":
+def main():
+    """Main entry point for the Flask application."""
     app.run(
         host="0.0.0.0",
         port=5000,
         debug=False,
         use_reloader=False
     )
+
+if __name__ == "__main__":
+    main()
