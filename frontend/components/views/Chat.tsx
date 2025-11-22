@@ -1,17 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { ChatMessage as ChatMessageType, TestScenario } from '../../types';
-import { postChatMessageStream } from '../../services/apiService';
+import { sendChatMessage } from '../../services/apiService';
 import ChatInput from '../chat/ChatInput';
 import ChatMessage from '../chat/ChatMessage';
 import DeveloperTools from '../chat/DeveloperTools';
 import { useAppContext } from '../../hooks/useAppContext';
 import WelcomeScreen from '../chat/WelcomeScreen';
+import PerformanceBar, { PerformanceMetrics } from '../chat/PerformanceBar';
 
 const Chat: React.FC = () => {
   const { currentChatId, chatSessions, selectedModel, backendStatus, updateChatSessionTitle, isDeveloperMode } = useAppContext();
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [testScenario, setTestScenario] = useState<TestScenario>('normal');
+  const [lastMetrics, setLastMetrics] = useState<PerformanceMetrics | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const currentChat = chatSessions.find(c => c.id === currentChatId);
@@ -31,47 +33,53 @@ const Chat: React.FC = () => {
   useEffect(scrollToBottom, [messages]);
 
   const handleSendMessage = async (text: string) => {
-    if (!text.trim() || !currentChatId) return;
+    if (!text.trim()) return;
 
-    const userMessage: ChatMessageType = {
+    const userText = text.trim();
+
+    const userBubble: ChatMessageType = {
       id: `user-${Date.now()}`,
       sender: 'user',
-      text,
+      text: userText,
       timestamp: new Date().toISOString(),
     };
-    
-    const aiPlaceholder: ChatMessageType = {
-        id: `ai-${Date.now()}`,
-        sender: 'ai',
-        text: '',
-        timestamp: new Date().toISOString(),
-    }
-    setMessages(prev => [...prev, userMessage, aiPlaceholder]);
+
+    setMessages(prev => [...prev, userBubble]);
     setIsLoading(true);
 
     try {
-      const stream = postChatMessageStream(currentChatId, text, isDeveloperMode ? testScenario : 'normal');
-      let currentText = '';
-      for await (const chunk of stream) {
-        if (typeof chunk === 'string') {
-          currentText += chunk;
-          setMessages(prev => prev.map(msg => 
-              msg.id === aiPlaceholder.id ? { ...msg, text: currentText } : msg
-          ));
-        } else if (chunk.type === 'titleUpdate' && currentChatId) {
-          updateChatSessionTitle(currentChatId, chunk.title);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      const errorMessageText = error instanceof Error ? error.message : 'An unknown error occurred.';
-      const errorMessage: ChatMessageType = {
-        id: aiPlaceholder.id,
+      const result = await sendChatMessage(userText);
+
+      const aiBubble: ChatMessageType = {
+        id: `ai-${Date.now()}`,
         sender: 'ai',
-        text: `Sorry, I encountered an error: **${errorMessageText}**`,
+        text: result.reply,
         timestamp: new Date().toISOString(),
       };
-      setMessages(prev => prev.map(msg => msg.id === aiPlaceholder.id ? errorMessage : msg));
+
+      setMessages(prev => [...prev, aiBubble]);
+
+      // Capture performance metrics
+      if (result.metrics) {
+        setLastMetrics({
+          model: result.metrics.model,
+          tps: result.metrics.tps,
+          input_tokens: result.metrics.input_tokens,
+          output_tokens: result.metrics.output_tokens,
+          total_tokens: result.metrics.total_tokens,
+          latency_ms: result.metrics.latency_ms,
+          context_used_pct: result.metrics.context_used_pct,
+        });
+      }
+
+    } catch (err: any) {
+      const errorBubble: ChatMessageType = {
+        id: `error-${Date.now()}`,
+        sender: 'ai',
+        text: '⚠️ Error contacting backend.',
+        timestamp: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, errorBubble]);
     } finally {
       setIsLoading(false);
     }
@@ -102,6 +110,7 @@ const Chat: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full max-h-screen p-4">
+      <PerformanceBar metrics={lastMetrics} />
       <div className="flex-1 overflow-y-auto pr-4 space-y-6 pt-16">
         {messages.map((msg, index) => (
           <ChatMessage key={msg.id || index} message={msg} />
