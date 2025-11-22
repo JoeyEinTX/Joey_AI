@@ -1,0 +1,33 @@
+# Python
+venv/
+env/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# Jetson/Linux caches
+*.log
+.cache/
+
+# Node / Frontend
+node_modules/
+dist/
+build/
+
+# Vite / React
+*.local
+*.DS_Store
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temp
+*.tmp
+*.bak
+*~
