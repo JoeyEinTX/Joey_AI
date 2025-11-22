@@ -1,8 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useHealthCheck } from '../hooks/useHealthCheck';
 
 const Welcome: React.FC = () => {
   const navigate = useNavigate();
+  const health = useHealthCheck();
 
   const features = [
     {
@@ -38,12 +40,25 @@ const Welcome: React.FC = () => {
           <p className="text-xl text-joey-text/70 mb-8">
             Your intelligent AI assistant powered by advanced language models
           </p>
+          {!health.online && (
+            <div className="mb-4 bg-red-500/20 border border-red-500/50 rounded-lg p-3">
+              <p className="text-red-400 text-sm">
+                ⚠️ Backend is offline. Please ensure the backend server is running.
+              </p>
+            </div>
+          )}
           <button
             onClick={() => navigate('/')}
-            className="px-8 py-4 bg-joey-accent text-joey-main rounded-lg font-semibold text-lg hover:opacity-90 transition-opacity shadow-lg"
+            disabled={!health.online}
+            className="px-8 py-4 bg-joey-accent text-joey-main rounded-lg font-semibold text-lg hover:opacity-90 transition-opacity shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Start Chatting
+            {health.online ? 'Start Chatting' : 'Backend Offline'}
           </button>
+          {health.online && health.model && (
+            <p className="text-sm text-joey-text/60 mt-2">
+              Using model: <span className="text-joey-accent font-medium">{health.model}</span>
+            </p>
+          )}
         </div>
 
         {/* Features grid */}

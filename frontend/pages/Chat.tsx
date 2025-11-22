@@ -1,23 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useChatContext } from '../context/ChatContext';
 
 const Chat: React.FC = () => {
-  const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+  const [inputMessage, setInputMessage] = useState('');
+  const { messages, sendMessage, isLoading, error } = useChatContext();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const handleSend = (e: React.FormEvent) => {
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim()) return;
+    if (!inputMessage.trim() || isLoading) return;
 
-    setMessages([...messages, { role: 'user', content: message }]);
-    setMessage('');
+    const messageToSend = inputMessage;
+    setInputMessage('');
     
-    // Placeholder for API integration in next phase
-    setTimeout(() => {
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: 'This is a placeholder response. API integration coming in next phase!' 
-      }]);
-    }, 500);
+    try {
+      await sendMessage(messageToSend);
+    } catch (err) {
+      console.error('[Chat] Error sending message:', err);
+    }
   };
 
   return (
@@ -36,41 +41,55 @@ const Chat: React.FC = () => {
             </div>
           </div>
         ) : (
-          messages.map((msg, idx) => (
-            <div
-              key={idx}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
+          <>
+            {messages.map((msg) => (
               <div
-                className={`max-w-[70%] rounded-lg px-4 py-3 ${
-                  msg.role === 'user'
-                    ? 'bg-joey-accent text-joey-main'
-                    : 'bg-joey-secondary text-joey-text'
-                }`}
+                key={msg.id}
+                className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
               >
-                <p className="whitespace-pre-wrap">{msg.content}</p>
+                <div
+                  className={`max-w-[70%] rounded-lg px-4 py-3 ${
+                    msg.sender === 'user'
+                      ? 'bg-joey-accent text-joey-main'
+                      : 'bg-joey-secondary text-joey-text'
+                  }`}
+                >
+                  <p className="whitespace-pre-wrap">{msg.text}</p>
+                  <span className="text-xs opacity-60 mt-1 block">
+                    {new Date(msg.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
               </div>
-            </div>
-          ))
+            ))}
+            <div ref={messagesEndRef} />
+          </>
         )}
       </div>
+
+      {/* Error display */}
+      {error && (
+        <div className="px-4 py-2 bg-red-500/20 border-t border-red-500/50">
+          <p className="text-red-400 text-sm">{error}</p>
+        </div>
+      )}
 
       {/* Input area */}
       <div className="border-t border-joey-accent bg-joey-secondary p-4">
         <form onSubmit={handleSend} className="flex gap-2">
           <input
             type="text"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Type your message..."
-            className="flex-1 px-4 py-2 bg-joey-main text-joey-text rounded-lg border border-joey-accent focus:outline-none focus:ring-2 focus:ring-joey-accent"
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            placeholder={isLoading ? "Waiting for response..." : "Type your message..."}
+            disabled={isLoading}
+            className="flex-1 px-4 py-2 bg-joey-main text-joey-text rounded-lg border border-joey-accent focus:outline-none focus:ring-2 focus:ring-joey-accent disabled:opacity-50"
           />
           <button
             type="submit"
-            disabled={!message.trim()}
+            disabled={!inputMessage.trim() || isLoading}
             className="px-6 py-2 bg-joey-accent text-joey-main rounded-lg font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
           >
-            Send
+            {isLoading ? 'Sending...' : 'Send'}
           </button>
         </form>
       </div>

@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { UIProvider } from '../context/UIContext';
 import { AppContextProvider } from '../context/AppContext';
+import { ChatProvider } from '../context/ChatContext';
 import Sidebar from '../components/navigation/Sidebar';
 import TopBar from '../components/navigation/TopBar';
 import SlideOutMenu from '../components/navigation/SlideOutMenu';
@@ -11,7 +12,8 @@ const AppLayout: React.FC = () => {
   return (
     <UIProvider>
       <AppContextProvider>
-        <div className="relative h-screen bg-joey-main font-sans text-joey-text overflow-hidden flex">
+        <ChatProvider>
+          <div className="relative h-screen bg-joey-main font-sans text-joey-text overflow-hidden flex">
           {/* Sidebar */}
           <Sidebar />
           
@@ -32,6 +34,7 @@ const AppLayout: React.FC = () => {
           {/* Slide-out menu overlay */}
           <SlideOutMenu />
         </div>
+        </ChatProvider>
       </AppContextProvider>
     </UIProvider>
   );
