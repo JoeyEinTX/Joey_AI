@@ -31,6 +31,14 @@ const Dashboard: React.FC = () => {
     return 'success';
   }
 
+  // Prevent Dashboard from rendering before backend + stats are ready
+  if (backendStatus === "loading" || !systemStats) {
+    return (
+      <div className="text-joey-text p-6 text-xl">
+        Connecting to backend...
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

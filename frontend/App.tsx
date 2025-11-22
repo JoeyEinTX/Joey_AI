@@ -10,7 +10,7 @@ import Settings from './components/views/Settings';
 import type { View } from './types';
 
 const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<View>('chat');
+  const [currentView, setCurrentView] = useState<View>('dashboard');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const handleSetView = (view: View) => {
