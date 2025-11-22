@@ -48,19 +48,31 @@ const simulateDelay = <T,>(data: T): Promise<T> =>
 // --- API FUNCTIONS ---
 
 export const getHealth = async (): Promise<{ status: 'ok' | 'error', active_model: string | null }> => {
-  if (!isBackendHealthy) throw new Error("Backend is down");
-  return simulateDelay({ status: 'ok', active_model: activeModel });
+  try {
+    const response = await fetch(`${BASE_URL}/api/health`);
+    if (!response.ok) throw new Error();
+    const data = await response.json();
+    if (data.status === 'ok') {
+      return { status: 'ok', active_model: data.active_model ?? null };
+    } else {
+      return { status: 'error', active_model: null };
+    }
+  } catch {
+    return { status: 'error', active_model: null };
+  }
 };
 
 export const getSystemStats = async (): Promise<SystemStats> => {
-  const stats: SystemStats = {
-    cpu_load: Math.random() * 100,
-    gpu_load: Math.random() * 100,
-    ram_usage: Math.random() * 16,
-    ram_total: 16,
-    gpu_mode: 'MaxN',
+  const response = await fetch(`${BASE_URL}/api/system/system_stats`);
+  if (!response.ok) throw new Error('Failed to fetch system stats');
+  const json = await response.json();
+  return {
+    cpu_load: json.cpu_load,
+    gpu_load: json.gpu_load,
+    ram_usage: json.ram_used_gb,
+    ram_total: json.ram_total_gb,
+    gpu_mode: json.gpu_mode || 'MaxN'
   };
-  return simulateDelay(stats);
 };
 
 export const getModels = async (): Promise<OllamaModel[]> => simulateDelay(mockModels);

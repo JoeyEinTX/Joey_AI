@@ -24,5 +24,10 @@ app.register_blueprint(system_bp, url_prefix='/api/system')
 app.register_blueprint(models_bp, url_prefix='/api')
 app.register_blueprint(chats_bp, url_prefix='/api/chats')
 
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+    app.run(
+        host="0.0.0.0",
+        port=5000,
+        debug=False,
+        use_reloader=False
+    )
